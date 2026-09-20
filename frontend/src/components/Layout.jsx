@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import UserMenu from './UserMenu.jsx';
+import NotificationBell from './NotificationBell.jsx';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', shortLabel: 'Home', end: true },
@@ -41,6 +42,8 @@ export default function Layout() {
           </div>
 
           <div className="flex items-center gap-3">
+            <NotificationBell />
+
             <UserMenu landlord={landlord} onLogout={logout} />
           </div>
         </div>

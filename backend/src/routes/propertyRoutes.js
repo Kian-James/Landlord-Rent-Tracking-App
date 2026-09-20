@@ -2,20 +2,20 @@ import { Router } from 'express';
 import { body } from 'express-validator';
 import validate from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
-import * as ctrl from '../controllers/propertyController.js';
+import * as controller from '../controllers/propertyController.js';
 
 const router = Router();
 
 router.use(requireAuth);
 
-router.get('/', ctrl.list);
-router.get('/:id', ctrl.getOne);
+router.get('/', controller.list);
+router.get('/:id', controller.getOne);
 
 router.post(
   '/',
   [body('name').trim().notEmpty().withMessage('Property name is required.'), body('address').trim().notEmpty().withMessage('Address is required.')],
   validate,
-  ctrl.create
+  controller.create
 );
 
 router.patch(
@@ -26,8 +26,8 @@ router.patch(
     body('description').optional().isLength({ max: 2000 }).withMessage('Description is too long.'),
   ],
   validate,
-  ctrl.update
+  controller.update
 );
-router.delete('/:id', ctrl.archive);
+router.delete('/:id', controller.archive);
 
 export default router;

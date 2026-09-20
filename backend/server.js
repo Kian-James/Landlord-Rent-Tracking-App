@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { createApp } from './src/app.js';
+import { startScheduler } from './src/jobs/scheduler.js';
 
 const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'FIREBASE_PROJECT_ID'];
 
@@ -15,6 +16,10 @@ async function main() {
   app.listen(port, () => {
     console.log(`[server] listening on port ${port}`);
   });
+
+  if (process.env.NODE_ENV !== 'test') {
+    startScheduler();
+  }
 }
 
 main().catch((err) => {

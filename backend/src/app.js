@@ -13,6 +13,7 @@ import tenantRoutes from './routes/tenantRoutes.js';
 import contractRoutes from './routes/contractRoutes.js';
 import rentRoutes from './routes/rentRoutes.js';
 import utilityBillRoutes from './routes/utilityBillRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 
 function createApp() {
@@ -35,6 +36,7 @@ function createApp() {
   app.use('/api/contracts', contractRoutes);
   app.use('/api/rent-records', rentRoutes);
   app.use('/api/utility-bills', utilityBillRoutes);
+  app.use('/api/notifications', notificationRoutes);
   app.use('/api/dashboard', dashboardRoutes);
 
   app.use(notFound);
