@@ -5,13 +5,14 @@ import UserMenu from './UserMenu.jsx';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', shortLabel: 'Home', end: true },
+  { to: '/bills', label: 'Bill Checklist', shortLabel: 'Bills' },
   { to: '/tenants', label: 'Tenants & Leases', shortLabel: 'Tenants' },
   { to: '/properties', label: 'Properties', shortLabel: 'Properties' },
+  { to: '/calendar', label: 'Calendar', shortLabel: 'Calendar' },
 ];
 
 export default function Layout() {
   const { landlord, logout } = useAuth();
-
   return (
     <div className="min-h-screen bg-canvas pb-20 md:pb-0">
       <header className="sticky top-0 z-20 border-b border-line bg-surface">
@@ -49,7 +50,7 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-20 grid grid-cols-3 border-t border-line bg-surface lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-20 grid grid-cols-5 border-t border-line bg-surface lg:hidden">
         {NAV_ITEMS.map((item) => (
           <NavLink
             key={item.to}

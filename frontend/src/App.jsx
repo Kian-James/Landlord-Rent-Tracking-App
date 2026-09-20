@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Login from './pages/Login.jsx';
@@ -7,6 +7,8 @@ import Register from './pages/Register.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Properties from './pages/Properties.jsx';
 import Tenants from './pages/Tenants.jsx';
+import BillChecklist from './pages/BillChecklist.jsx';
+import Calendar from './pages/Calendar.jsx';
 
 export default function App() {
   return (
@@ -25,7 +27,8 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="properties" element={<Properties />} />
         <Route path="tenants" element={<Tenants />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="bills" element={<BillChecklist />} />
+        <Route path="calendar" element={<Calendar />} />
       </Route>
     </Routes>
   );
