@@ -74,7 +74,6 @@ export async function fetchAll(build, pageSize = 1000) {
   return rows;
 }
 
-// Split an array into smaller chunks.
 export function chunk(list, size) {
   const chunks = [];
 
@@ -118,7 +117,6 @@ export async function updateOwned(
   patch,
   { select = '*' } = {}
 ) {
-  // Nothing to update, so just return the existing record.
   if (Object.keys(patch).length === 0) {
     return findOwnedOrThrow(table, id, landlordId, { select });
   }

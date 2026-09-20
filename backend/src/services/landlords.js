@@ -3,7 +3,7 @@ import ApiError from '../utils/ApiError.js';
 import { unwrap } from '../db/helper.js';
 import { recordAudit } from './audit.js';
 
-export const LANDLORD_COLUMNS = 'id, name, email, role';
+export const LANDLORD_COLUMNS = 'id, name, email, gmail_integration, notification_preferences, created_at, updated_at';
 
 export async function getOrCreateLandlord(decodedToken, { ip = '' } = {}) {
   const uid = decodedToken.uid;

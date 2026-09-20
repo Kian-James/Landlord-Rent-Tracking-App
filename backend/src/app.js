@@ -3,11 +3,12 @@ import cors from 'cors';
 import helmet from 'helmet';
 import hpp from 'hpp';
 
-import authRoutes from './routes/authRoutes.js';
-
 import { apiLimiter } from './middleware/rateLimit.js';
+import { notFound, errorHandler } from './middleware/errorHandler.js';
 
-
+import authRoutes from './routes/authRoutes.js';
+import propertyRoutes from './routes/propertyRoutes.js';
+import unitRoutes from './routes/unitRoutes.js';
 
 function createApp() {
   const app = express();
@@ -23,6 +24,11 @@ function createApp() {
   app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 
   app.use('/api/auth', authRoutes);
+  app.use('/api/properties', propertyRoutes);
+  app.use('/api/units', unitRoutes);
+
+  app.use(notFound);
+  app.use(errorHandler);
 
   return app;
 }

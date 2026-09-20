@@ -15,7 +15,7 @@ backend/
     │   ├── firebase.js
     │   └── supabase.js
     ├── db/
-    │   ├── helpers.js
+    │   ├── helper.js
     │   └── mapper.js
     ├── middleware/
     │   ├── auth.js
