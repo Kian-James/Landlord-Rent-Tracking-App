@@ -3,7 +3,11 @@ import cors from 'cors';
 import helmet from 'helmet';
 import hpp from 'hpp';
 
+import authRoutes from './routes/authRoutes.js';
+
 import { apiLimiter } from './middleware/rateLimit.js';
+
+
 
 function createApp() {
   const app = express();
@@ -17,6 +21,8 @@ function createApp() {
   app.use(apiLimiter);
 
   app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
+
+  app.use('/api/auth', authRoutes);
 
   return app;
 }
