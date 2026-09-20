@@ -5,6 +5,7 @@ import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import Properties from './pages/Properties.jsx';
+import Tenants from './pages/Tenants.jsx';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
       >
         <Route index element={<Navigate to="/properties" replace />} />
         <Route path="properties" element={<Properties />} />
+        <Route path="tenants" element={<Tenants />} />
       </Route>
     </Routes>
   );

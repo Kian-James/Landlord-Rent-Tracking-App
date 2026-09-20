@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import UserMenu from './UserMenu.jsx';
 
 const NAV_ITEMS = [
+  { to: '/tenants', label: 'Tenants & Leases', shortLabel: 'Tenants' },
   { to: '/properties', label: 'Properties', shortLabel: 'Properties' },
 ];
 
@@ -47,7 +48,7 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-20 grid grid-cols-1 border-t border-line bg-surface lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-20 grid grid-cols-2 border-t border-line bg-surface lg:hidden">
         {NAV_ITEMS.map((item) => (
           <NavLink
             key={item.to}

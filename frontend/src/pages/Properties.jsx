@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import client from '../api/client.js';
 import BentoCard from '../components/BentoCard.jsx';
 import { Skeleton, SkeletonText } from '../components/Skeleton.jsx';
@@ -14,6 +14,68 @@ function ordinalDay(day) {
   if (!day) return null;
   const suffix = ['th', 'st', 'nd', 'rd'][(day % 10 > 3 || Math.floor(day % 100 / 10) === 1) ? 0 : day % 10];
   return `${day}${suffix}`;
+}
+
+function cleanNumber(raw, { decimals = 0, max } = {}) {
+  let next = String(raw ?? '').replace(decimals > 0 ? /[^0-9.]/g : /[^0-9]/g, '');
+  if (decimals > 0) {
+    const [whole, ...rest] = next.split('.');
+    next = rest.length ? `${whole}.${rest.join('').slice(0, decimals)}` : whole;
+  }
+  next = next.replace(/^0+(?=\d)/, '');
+  if (max !== undefined && next !== '' && Number(next) > max) next = String(max);
+  return next;
+}
+
+function withCommas(raw) {
+  const [whole, fraction] = String(raw).split('.');
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return fraction === undefined ? grouped : `${grouped}.${fraction}`;
+}
+
+function NumberInput({ value, onChange, decimals = 0, min, max, commas = false, className, ...rest }) {
+  const inputRef = useRef(null);
+  const caretRef = useRef(null);
+  const [, refresh] = useReducer((n) => n + 1, 0);
+  const raw = String(value ?? '');
+  const display = commas ? withCommas(raw) : raw;
+
+  useLayoutEffect(() => {
+    const input = inputRef.current;
+    if (caretRef.current === null || !input) return;
+    let remaining = caretRef.current;
+    caretRef.current = null;
+    let position = 0;
+    while (position < input.value.length && remaining > 0) {
+      if (/[0-9.]/.test(input.value[position])) remaining -= 1;
+      position += 1;
+    }
+    input.setSelectionRange(position, position);
+  });
+
+  const handleChange = (e) => {
+    const typed = e.target.value;
+    const caret = e.target.selectionStart ?? typed.length;
+    caretRef.current = typed.slice(0, caret).replace(/[^0-9.]/g, '').length;
+    onChange(cleanNumber(typed, { decimals, max }));
+    refresh();
+  };
+
+  return (
+    <input
+      {...rest}
+      ref={inputRef}
+      type="text"
+      inputMode={decimals > 0 ? 'decimal' : 'numeric'}
+      autoComplete="off"
+      value={display}
+      onChange={handleChange}
+      onBlur={() => {
+        if (min !== undefined && raw !== '' && Number(raw) < min) onChange(String(min));
+      }}
+      className={className}
+    />
+  );
 }
 
 const UTILITY_TYPES = [
@@ -65,8 +127,20 @@ function utilitiesPayloadFrom(form) {
   };
 }
 
+function hasInvalidUtilityDueDay(form) {
+  return UTILITY_TYPES.some(({ key }) => {
+    const value = form[`${key}DueDay`];
+    if (value === '' || value === null || value === undefined) return false;
+    const day = Number(value);
+    return !Number.isInteger(day) || day < 1 || day > 31;
+  });
+}
+
+const UTILITY_DAY_ERROR = 'Utility due days must be whole numbers from 1 to 31.';
+
 function UnitFieldsEditor({ form, onChange }) {
   const set = (key) => (e) => onChange({ ...form, [key]: e.target.value });
+  const setNumber = (key) => (value) => onChange({ ...form, [key]: value });
   return (
     <>
       <input
@@ -78,13 +152,13 @@ function UnitFieldsEditor({ form, onChange }) {
       />
       <div>
         <label className="text-[11px] text-ink/50">Monthly rent</label>
-        <input
+        <NumberInput
           required
-          type="number"
-          min="0"
+          decimals={2}
+          commas
           placeholder="0"
           value={form.monthlyRent}
-          onChange={set('monthlyRent')}
+          onChange={setNumber('monthlyRent')}
           className="mt-0.5 w-full rounded-lg border border-line px-3 py-2 text-sm"
         />
       </div>
@@ -94,21 +168,20 @@ function UnitFieldsEditor({ form, onChange }) {
         {UTILITY_TYPES.map(({ key, label }) => (
           <div key={key} className="grid grid-cols-3 items-center gap-2">
             <span className="text-xs text-ink/60"><BillIcon type={key} className="mr-1" />{label}</span>
-            <input
-              type="number"
-              min="0"
+            <NumberInput
+              decimals={2}
+              commas
               placeholder="Amount"
               value={form[`${key}Amount`]}
-              onChange={set(`${key}Amount`)}
+              onChange={setNumber(`${key}Amount`)}
               className="w-full rounded-lg border border-line px-3 py-2 text-sm"
             />
-            <input
-              type="number"
-              min="1"
-              max="31"
+            <NumberInput
+              min={1}
+              max={31}
               placeholder="Due day (1-31)"
               value={form[`${key}DueDay`]}
-              onChange={set(`${key}DueDay`)}
+              onChange={setNumber(`${key}DueDay`)}
               className="w-full rounded-lg border border-line px-3 py-2 text-sm"
             />
           </div>
@@ -212,6 +285,10 @@ export default function Properties() {
   const handleCreateUnit = async (e, propertyId) => {
     e.preventDefault();
     setError('');
+    if (hasInvalidUtilityDueDay(unitForm)) {
+      setError(UTILITY_DAY_ERROR);
+      return;
+    }
     try {
       await client.post('/units', {
         propertyId,
@@ -241,6 +318,10 @@ export default function Properties() {
   const handleUpdateUnit = async (e, unit) => {
     e.preventDefault();
     setError('');
+    if (hasInvalidUtilityDueDay(editUnitForm)) {
+      setError(UTILITY_DAY_ERROR);
+      return;
+    }
     try {
       const payload = {
         name: editUnitForm.name,

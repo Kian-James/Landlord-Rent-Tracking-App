@@ -9,6 +9,8 @@ import { notFound, errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './routes/authRoutes.js';
 import propertyRoutes from './routes/propertyRoutes.js';
 import unitRoutes from './routes/unitRoutes.js';
+import tenantRoutes from './routes/tenantRoutes.js';
+import contractRoutes from './routes/contractRoutes.js';
 
 function createApp() {
   const app = express();
@@ -26,6 +28,8 @@ function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/properties', propertyRoutes);
   app.use('/api/units', unitRoutes);
+  app.use('/api/tenants', tenantRoutes);
+  app.use('/api/contracts', contractRoutes);
 
   app.use(notFound);
   app.use(errorHandler);
