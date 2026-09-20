@@ -11,6 +11,8 @@ import propertyRoutes from './routes/propertyRoutes.js';
 import unitRoutes from './routes/unitRoutes.js';
 import tenantRoutes from './routes/tenantRoutes.js';
 import contractRoutes from './routes/contractRoutes.js';
+import rentRoutes from './routes/rentRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
 
 function createApp() {
   const app = express();
@@ -30,6 +32,8 @@ function createApp() {
   app.use('/api/units', unitRoutes);
   app.use('/api/tenants', tenantRoutes);
   app.use('/api/contracts', contractRoutes);
+  app.use('/api/rent-records', rentRoutes);
+  app.use('/api/dashboard', dashboardRoutes);
 
   app.use(notFound);
   app.use(errorHandler);

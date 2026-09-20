@@ -4,6 +4,7 @@ import Layout from './components/Layout.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
+import Dashboard from './pages/Dashboard.jsx';
 import Properties from './pages/Properties.jsx';
 import Tenants from './pages/Tenants.jsx';
 
@@ -21,9 +22,10 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/properties" replace />} />
+        <Route index element={<Dashboard />} />
         <Route path="properties" element={<Properties />} />
         <Route path="tenants" element={<Tenants />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   );
