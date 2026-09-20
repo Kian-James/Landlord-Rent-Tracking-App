@@ -49,4 +49,3 @@ frontend/
         ├── Register.jsx
         ├── Settings.jsx
         ├── Tenants.jsx
-        └── Verification.jsx

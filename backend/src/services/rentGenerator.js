@@ -117,25 +117,11 @@ async function refreshRentStatuses(landlordId = null) {
   });
   if (records.length === 0) return { checked: 0, updated: 0 };
 
-  const awaiting = await fetchAll(() => {
-    let q = supabase
-      .from('payments')
-      .select('id, rent_record_id')
-      .eq('verification_status', 'awaiting_verification')
-      .order('id');
-    if (landlordId) q = q.eq('landlord_id', landlordId);
-    return q;
-  });
-  const awaitingVerificationIds = new Set(awaiting.map((p) => p.rent_record_id));
-
   const idsByNextStatus = new Map();
   const toNotify = [];
 
   for (const record of records) {
-    const nextStatus = computeStatus(
-      { dueDate: record.due_date, status: record.status },
-      { hasAwaitingVerification: awaitingVerificationIds.has(record.id) }
-    );
+    const nextStatus = computeStatus({ dueDate: record.due_date, status: record.status });
 
     if (nextStatus !== record.status) {
       if (!idsByNextStatus.has(nextStatus)) idsByNextStatus.set(nextStatus, []);

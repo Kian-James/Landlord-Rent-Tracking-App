@@ -47,13 +47,8 @@ const summary = asyncHandler(async (req, res) => {
     return days <= 3;
   });
 
-  const [activeTenantCount, verification, expiringContracts] = await Promise.all([
+  const [activeTenantCount, expiringContracts] = await Promise.all([
     countOf(scope(supabase.from('tenants').select('id', { count: 'exact', head: true })).eq('status', 'active')),
-    scope(
-      supabase.from('payments').select('*, tenant:tenants!tenant_id(id, full_name), unit:units!unit_id(id, name)')
-    )
-      .eq('verification_status', 'awaiting_verification')
-      .then(unwrap),
     scope(
       supabase.from('contracts').select('*, tenant:tenants!tenant_id(id, full_name), unit:units!unit_id(id, name)')
     )
@@ -73,13 +68,11 @@ const summary = asyncHandler(async (req, res) => {
       paid: totals.counts.paid || 0,
       pending: totals.counts.pending || 0,
       overdue: totals.counts.overdue || 0,
-      verification: totals.counts.verification || 0,
       upcoming: totals.counts.upcoming || 0,
     },
     needsAttention: {
       overdue: toApi(overdue),
       dueSoon: toApi(dueSoon),
-      verification: toApi(verification),
       expiringContracts: toApi(expiringContracts),
     },
     checklist: toApi(records),

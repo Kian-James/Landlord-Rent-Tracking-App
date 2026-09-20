@@ -1,6 +1,5 @@
-function computeStatus(rentRecord, { hasAwaitingVerification, now = new Date() } = {}) {
+function computeStatus(rentRecord, { now = new Date() } = {}) {
   if (rentRecord.status === 'paid') return 'paid';
-  if (hasAwaitingVerification) return 'verification';
 
   const due = new Date(rentRecord.dueDate);
   const today = new Date(now);

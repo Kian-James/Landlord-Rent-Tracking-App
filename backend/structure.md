@@ -21,14 +21,12 @@ backend/
     │   ├── auth.js
     │   ├── errorHandler.js
     │   ├── rateLimit.js
-    │   ├── receiptUpload.js
     │   └── validate.js
     ├── controllers/
     │   ├── authController.js
     │   ├── contractController.js
     │   ├── dashboardController.js
     │   ├── notificationController.js
-    │   ├── paymentController.js
     │   ├── propertyController.js
     │   ├── rentController.js
     │   ├── tenantController.js
@@ -40,7 +38,6 @@ backend/
     │   ├── dashboardRoutes.js
     │   ├── gmailRoutes.js
     │   ├── notificationRoutes.js
-    │   ├── paymentRoutes.js
     │   ├── propertyRoutes.js
     │   ├── rentRoutes.js
     │   ├── settingsRoutes.js
@@ -52,7 +49,6 @@ backend/
     │   ├── landlords.js
     │   ├── notifications.js
     │   ├── prepaidPeriods.js
-    │   ├── receiptStorage.js
     │   ├── rentGenerator.js
     │   ├── rentStatus.js
     │   └── utilityBillGenerator.js

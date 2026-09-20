@@ -80,7 +80,7 @@ const markUnpaid = asyncHandler(async (req, res) => {
   const record = await findOwnedOrThrow('rent_records', req.params.id, req.landlordId);
   if (record.status !== 'paid') throw new ApiError(409, 'This rent period is not currently marked paid.');
 
-  const status = computeStatus({ dueDate: record.due_date, status: 'pending' }, { hasAwaitingVerification: false });
+  const status = computeStatus({ dueDate: record.due_date, status: 'pending' });
   const updated = await updateOwned('rent_records', record.id, req.landlordId, { status, payment_id: null });
 
   await recordAudit('payment.reverted', { landlord: req.landlordId, metadata: { rentRecordId: record.id } });

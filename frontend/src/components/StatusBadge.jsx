@@ -5,7 +5,6 @@ const STATUS_CONFIG = {
   pending: { label: 'Pending', dot: 'bg-status-pending', bg: 'bg-status-pendingSoft', text: 'text-status-pending' },
   overdue: { label: 'Overdue', dot: 'bg-status-overdue', bg: 'bg-status-overdueSoft', text: 'text-status-overdue' },
   upcoming: { label: 'Upcoming', dot: 'bg-status-upcoming', bg: 'bg-status-upcomingSoft', text: 'text-status-upcoming' },
-  verification: { label: 'Verification', dot: 'bg-status-verify', bg: 'bg-status-verifySoft', text: 'text-status-verify' },
 };
 
 export default function StatusBadge({ status }) {

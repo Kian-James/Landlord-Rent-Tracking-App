@@ -25,7 +25,6 @@ function greeting() {
 
 const ATTENTION_STYLE = {
   overdue: { tint: 'bg-status-overdueSoft', label: 'Overdue', labelColor: 'text-status-overdue' },
-  verification: { tint: 'bg-status-verifySoft', label: 'Verification Inbox', labelColor: 'text-status-verify' },
   dueSoon: { tint: 'bg-status-pendingSoft', label: 'Due Soon', labelColor: 'text-status-pending' },
   contract: { tint: 'bg-status-upcomingSoft', label: 'Contract Renewal', labelColor: 'text-status-upcoming' },
 };
@@ -35,11 +34,10 @@ const DOT_FOR_STATUS = {
   pending: 'bg-status-pending',
   overdue: 'bg-status-overdue',
   upcoming: 'bg-status-upcoming',
-  verification: 'bg-status-verify',
 };
 
 const PAGE_SIZE = 5;
-const FILTERS = ['all', 'paid', 'pending', 'overdue', 'verification'];
+const FILTERS = ['all', 'paid', 'pending', 'overdue'];
 
 function DashboardSkeleton() {
   return (
@@ -184,7 +182,6 @@ export default function Dashboard() {
   const { totals, needsAttention, checklist } = data;
   const attentionItems = [
     ...needsAttention.overdue.map((r) => ({ kind: 'overdue', record: r })),
-    ...needsAttention.verification.map((p) => ({ kind: 'verification', payment: p })),
     ...needsAttention.dueSoon.map((r) => ({ kind: 'dueSoon', record: r })),
     ...needsAttention.expiringContracts.map((c) => ({ kind: 'contract', contract: c })),
   ];
@@ -297,7 +294,7 @@ export default function Dashboard() {
             <div className="h-full bg-status-overdue" style={{ width: `${overduePct}%` }} />
           </div>
           <p className="mt-1 text-xs text-ink/45">
-            {totals.paid} Paid &middot; {totals.pending} Pending &middot; {totals.overdue} Overdue &middot; {totals.verification} Review
+            {totals.paid} Paid &middot; {totals.pending} Pending &middot; {totals.overdue} Overdue
           </p>
         </BentoCard>
       </div>
@@ -376,17 +373,6 @@ export default function Dashboard() {
                       </div>
                     </>
                   )}
-                  {item.kind === 'verification' && (
-                    <>
-                      <p className="mt-1 text-sm font-medium">{item.payment.tenant?.fullName} &middot; {item.payment.unit?.name}</p>
-                      <div className="mt-2 flex items-center justify-between">
-                        <p className="text-sm font-semibold">{peso(item.payment.expectedAmount)}</p>
-                        <Link to="/verification" className="rounded-full bg-status-verify px-3 py-1 text-xs font-medium text-white">
-                          Review Slip
-                        </Link>
-                      </div>
-                    </>
-                  )}
                   {item.kind === 'dueSoon' && (
                     <>
                       <p className="mt-1 text-sm font-medium">{item.record.tenant?.fullName} &middot; {item.record.unit?.name}</p>
@@ -462,7 +448,7 @@ export default function Dashboard() {
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusBadge status={r.status} />
-                  {r.status !== 'paid' && r.status !== 'verification' && (
+                  {r.status !== 'paid' && (
                     <button onClick={() => handleMarkPaid(r._id)} className="text-xs font-medium text-ink/60 hover:text-ink">
                       Mark Paid
                     </button>
