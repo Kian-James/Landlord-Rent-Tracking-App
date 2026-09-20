@@ -2,12 +2,15 @@ frontend/
 ├── .env.example
 ├── .gitignore
 ├── README.md
+├── eslint.config.js
 ├── index.html
 ├── package.json
 ├── postcss.config.js
 ├── tailwind.config.js
 ├── vite.config.js
 ├── public/
+│   ├── favicon.svg
+│   ├── icons.svg
 │   └── icons/
 │       ├── icon-192.png
 │       └── icon-512.png
@@ -21,7 +24,7 @@ frontend/
     │   └── AuthContext.jsx
     ├── lib/
     │   ├── apiCache.js
-    │   ├── authErrors.js
+    │   ├── authError.js
     │   ├── billIcons.jsx
     │   ├── calendarGrid.js
     │   └── firebase.js
