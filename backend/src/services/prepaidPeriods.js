@@ -30,4 +30,4 @@ function getPrepaidPeriods(contract) {
   return prepaid;
 }
 
-export { enumeratePeriods, getPrepaidPeriods };
+export { getPrepaidPeriods };

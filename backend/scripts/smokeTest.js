@@ -76,14 +76,14 @@ async function main() {
   const call = req(app);
 
   try {
-    await run(call, app);
+    await run(call);
   } finally {
     await supabase.from('landlords').delete().in('id', [UID_A, UID_B]);
   }
   console.log('\n[smoke-test] ALL CHECKS PASSED ✔');
 }
 
-async function run(call, app) {
+async function run(call) {
   console.log('\n[1] First authenticated call creates the landlord row');
   const token = tokenFor(UID_A, 'juan@example.com', 'Juan Santos');
   let res = await call('GET', '/api/auth/user', { token });

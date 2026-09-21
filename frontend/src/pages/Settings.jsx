@@ -1,23 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import client from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { friendlyAuthError } from '../lib/authError.js';
 import BentoCard from '../components/BentoCard.jsx';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCircle } from '@fortawesome/free-solid-svg-icons';
 
 export default function Settings() {
   const { landlord, setLandlord, canChangePassword, changePassword: changeFirebasePassword } = useAuth();
   const [name, setName] = useState(landlord?.name || '');
   const [prefs, setPrefs] = useState(landlord?.notificationPreferences || {});
-  const [gmail, setGmail] = useState(null);
   const [message, setMessage] = useState('');
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' });
   const [passwordMessage, setPasswordMessage] = useState('');
-
-  useEffect(() => {
-    client.get('/gmail/status').then((res) => setGmail(res.data));
-  }, []);
 
   const saveProfile = async (e) => {
     e.preventDefault();
@@ -31,21 +24,6 @@ export default function Settings() {
     setPrefs(merged);
     const { data } = await client.patch('/settings/notifications', updates);
     setLandlord(data.landlord);
-  };
-
-  const connectGmail = async () => {
-    try {
-      const { data } = await client.get('/gmail/oauth/start');
-      window.location.href = data.redirectUrl;
-    } catch (err) {
-      setMessage(err.response?.data?.error?.message || 'Gmail is not configured on this server yet.');
-    }
-  };
-
-  const disconnectGmail = async () => {
-    await client.post('/gmail/disconnect');
-    const { data } = await client.get('/gmail/status');
-    setGmail(data);
   };
 
   const changePassword = async (e) => {
@@ -131,39 +109,6 @@ export default function Settings() {
             />
           </label>
         </div>
-      </BentoCard>
-
-      <BentoCard>
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Gmail Integration</h2>
-          <span className="text-xs">
-            {gmail?.connected ? (
-              <span className="text-status-paid"><FontAwesomeIcon icon={faCircle} className="mr-1 text-[8px]" />Connected</span>
-            ) : (
-              <span className="text-ink/40"><FontAwesomeIcon icon={faCircle} className="mr-1 text-[8px]" />Not Connected</span>
-            )}
-          </span>
-        </div>
-        <p className="mt-1 text-sm text-ink/60">
-          Optional. Everything else in PropTrack works fully without Gmail — it only adds tenant email reminders.
-        </p>
-        {gmail?.connected ? (
-          <>
-            <p className="mt-2 text-sm">Connected as {gmail.gmailAddress}</p>
-            <button onClick={disconnectGmail} className="mt-3 rounded-lg border border-line px-4 py-2 text-sm font-medium hover:bg-canvas">
-              Disconnect Gmail
-            </button>
-          </>
-        ) : (
-          <button onClick={connectGmail} className="mt-3 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white">
-            Connect Gmail
-          </button>
-        )}
-        {!gmail?.configured && (
-          <p className="mt-2 text-xs text-ink/40">
-            Gmail OAuth credentials aren't configured on this server yet (see docs/GMAIL_INTEGRATION.md).
-          </p>
-        )}
       </BentoCard>
     </div>
   );

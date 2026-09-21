@@ -28,7 +28,6 @@ export default {
           upcoming: '#2563A8',
           upcomingSoft: '#E7F0FA',
           verify: '#6B4FA0',
-          verifySoft: '#EFEAF7',
         },
       },
       fontFamily: {

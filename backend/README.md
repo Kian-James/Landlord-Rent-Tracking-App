@@ -34,5 +34,3 @@ RLS is enabled on every table with no policies, so the public anon key can't rea
 
 - Existing MongoDB data is not migrated by anything here. Old accounts have no Firebase user, so
   people sign up again (or you import users into Firebase and move rows over yourself).
-- Google sign-in no longer connects Gmail automatically (Firebase doesn't return a refresh token).
-  The optional Gmail integration under Settings is still the same placeholder it was before.

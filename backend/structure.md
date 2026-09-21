@@ -36,7 +36,6 @@ backend/
     │   ├── authRoutes.js
     │   ├── contractRoutes.js
     │   ├── dashboardRoutes.js
-    │   ├── gmailRoutes.js
     │   ├── notificationRoutes.js
     │   ├── propertyRoutes.js
     │   ├── rentRoutes.js

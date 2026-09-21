@@ -9,11 +9,8 @@ frontend/
 ├── tailwind.config.js
 ├── vite.config.js
 ├── public/
-│   ├── favicon.svg
-│   ├── icons.svg
 │   └── icons/
-│       ├── icon-192.png
-│       └── icon-512.png
+│       └── icon-192.png
 └── src/
     ├── App.jsx
     ├── main.jsx

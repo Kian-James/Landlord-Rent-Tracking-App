@@ -10,7 +10,6 @@ const DESTINATION_BY_TYPE = {
   rent_overdue: '/bills',
   utility_bill_overdue: '/bills',
   contract_expiring: '/tenants',
-  contract_renewed: '/tenants',
 };
 
 function timeAgo(dateStr) {

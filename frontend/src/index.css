@@ -21,11 +21,3 @@ body {
     transition-duration: 0.001ms !important;
   }
 }
-
-.scrollbar-hide {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}

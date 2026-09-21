@@ -33,7 +33,7 @@ export default function Register() {
         <p className="text-lg font-semibold">PropTrack</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">Create your account</h1>
         <p className="mt-1 text-sm text-ink/60">
-          Sign up with any email and a password, or continue with Google. Connecting Gmail is optional and can wait.
+          Sign up with any email and a password, or continue with Google.
         </p>
 
         <div className="mt-6">

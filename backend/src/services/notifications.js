@@ -28,9 +28,4 @@ async function notifyMany(list) {
   return created;
 }
 
-async function notify(notification) {
-  const [created] = await notifyMany([notification]);
-  return created || null;
-}
-
-export { notify, notifyMany };
+export { notifyMany };

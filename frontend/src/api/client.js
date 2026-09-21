@@ -8,8 +8,6 @@ export function setUnauthorizedHandler(fn) {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
-export { API_BASE_URL };
-
 const client = axios.create({ baseURL: API_BASE_URL });
 
 client.interceptors.request.use(async (config) => {
