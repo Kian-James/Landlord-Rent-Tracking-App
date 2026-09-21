@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronDown } from '@fortawesome/free-solid-svg-icons';
 
@@ -65,6 +65,14 @@ export default function UserMenu({ landlord, onLogout }) {
             <p className="truncate text-xs font-medium">{landlord?.name}</p>
             <p className="truncate text-[10px] text-ink/45">{landlord?.email}</p>
           </div>
+          <Link
+            to="/settings"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="block px-3 py-2 text-sm text-ink/80 hover:bg-canvas"
+          >
+            Settings
+          </Link>
           <button
             role="menuitem"
             onClick={handleLogoutClick}

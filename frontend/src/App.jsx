@@ -9,6 +9,7 @@ import Properties from './pages/Properties.jsx';
 import Tenants from './pages/Tenants.jsx';
 import BillChecklist from './pages/BillChecklist.jsx';
 import Calendar from './pages/Calendar.jsx';
+import Settings from './pages/Settings.jsx';
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="tenants" element={<Tenants />} />
         <Route path="bills" element={<BillChecklist />} />
         <Route path="calendar" element={<Calendar />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
   );
