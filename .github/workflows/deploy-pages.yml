@@ -1,0 +1,91 @@
+name: Deploy client to GitHub Pages
+
+# Turn Pages on once, by hand, or this runs green and publishes nothing:
+#   Settings > Pages > Build and deployment > Source: GitHub Actions
+#
+# Repository VARIABLES (not secrets), because everything below ends up inside the
+# built JavaScript, which anyone can read:
+#   Settings > Secrets and variables > Actions > Variables
+#     VITE_API_BASE_URL          https://your-api.onrender.com   (no trailing slash)
+#     VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN,
+#     VITE_FIREBASE_PROJECT_ID, VITE_FIREBASE_APP_ID
+#
+# Never put a service-role key, a password or a database URL in a VITE_ variable.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/**'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: check
+        env:
+          IS_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          if [ -f client/package.json ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No client/package.json, so there is nothing to build yet."
+          fi
+          if [ "$IS_PRIVATE" = "true" ]; then
+            echo "::warning::This repository is private, so GitHub Pages cannot publish it and the deploy step will be skipped. Make it public (Settings > General > Danger Zone > Change visibility) to get your live link."
+          fi
+
+      - if: steps.check.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - if: steps.check.outputs.ready == 'true'
+        working-directory: client
+        run: npm ci
+
+      - name: Build
+        if: steps.check.outputs.ready == 'true'
+        working-directory: client
+        env:
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+        run: npm run build
+
+      - if: steps.check.outputs.ready == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: client/dist
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.ready == 'true' && github.event.repository.private == false
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
