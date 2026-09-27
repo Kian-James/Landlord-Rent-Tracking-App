@@ -12,7 +12,6 @@ server/
 └── src/
     ├── app.js
     ├── config/
-    │   ├── firebase.js
     │   └── supabase.js
     ├── db/
     │   ├── helper.js

@@ -9,6 +9,7 @@ export default function Register() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -16,10 +17,15 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setInfo('');
     setSubmitting(true);
     try {
-      await register(form.name, form.email, form.password);
-      navigate('/properties?onboarding=1');
+      const result = await register(form.name, form.email, form.password);
+      if (result.needsEmailConfirmation) {
+        setInfo('Check your email to confirm your account, then log in.');
+      } else {
+        navigate('/properties?onboarding=1');
+      }
     } catch (err) {
       setError(friendlyAuthError(err, 'Unable to create your account. Please try again.'));
     } finally {
@@ -37,10 +43,7 @@ export default function Register() {
         </p>
 
         <div className="mt-6">
-          <GoogleAuthButton
-            onSuccess={({ isNewUser }) => navigate(isNewUser ? '/properties?onboarding=1' : '/')}
-            onError={setError}
-          />
+          <GoogleAuthButton onError={setError} />
         </div>
 
         <div className="my-5 flex items-center gap-3">
@@ -89,6 +92,7 @@ export default function Register() {
           </div>
 
           {error && <p className="text-sm text-status-overdue">{error}</p>}
+          {info && <p className="text-sm text-status-paid">{info}</p>}
 
           <button
             type="submit"

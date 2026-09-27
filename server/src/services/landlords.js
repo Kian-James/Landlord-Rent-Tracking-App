@@ -5,17 +5,18 @@ import { recordAudit } from './audit.js';
 
 const LANDLORD_COLUMNS = 'id, name, email, notification_preferences, created_at, updated_at';
 
-export async function getOrCreateLandlord(decodedToken, { ip = '' } = {}) {
-  const uid = decodedToken.uid;
+export async function getOrCreateLandlord(user, { ip = '' } = {}) {
+  const uid = user.id;
 
   const existing = unwrap(await supabase.from('landlords').select(LANDLORD_COLUMNS).eq('id', uid).maybeSingle());
-  if (existing) return existing;
+  if (existing) return { landlord: existing, isNew: false };
 
-  if (!decodedToken.email) {
+  if (!user.email) {
     throw new ApiError(403, 'Your account needs an email address to use PropTrack.');
   }
-  const email = decodedToken.email.toLowerCase();
-  const name = String(decodedToken.name || email.split('@')[0]).trim().slice(0, 120) || 'Landlord';
+  const email = user.email.toLowerCase();
+  const metaName = user.user_metadata?.name || user.user_metadata?.full_name;
+  const name = String(metaName || email.split('@')[0]).trim().slice(0, 120) || 'Landlord';
 
   const { data, error } = await supabase
     .from('landlords')
@@ -25,12 +26,12 @@ export async function getOrCreateLandlord(decodedToken, { ip = '' } = {}) {
 
   if (!error) {
     await recordAudit('register', { landlord: uid, ip });
-    return data;
+    return { landlord: data, isNew: true };
   }
 
   if (error.code === '23505') {
     const raced = unwrap(await supabase.from('landlords').select(LANDLORD_COLUMNS).eq('id', uid).maybeSingle());
-    if (raced) return raced;
+    if (raced) return { landlord: raced, isNew: false };
     throw new ApiError(409, 'An account with this email already exists.');
   }
   throw new Error(error.message);

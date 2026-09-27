@@ -2,7 +2,6 @@ process.env.NODE_ENV = 'test';
 process.env.CORS_ORIGINS = 'http://localhost:5173';
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'http://localhost:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'wiring-check';
-process.env.FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'wiring-check';
 
 const { createApp } = await import('../src/app.js');
 await import('../src/jobs/scheduler.js');

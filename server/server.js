@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { createApp } from './src/app.js';
 import { startScheduler } from './src/jobs/scheduler.js';
 
-const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'FIREBASE_PROJECT_ID'];
+const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
 
 async function main() {
   const missing = REQUIRED_ENV.filter((key) => !process.env[key]);

@@ -11,7 +11,7 @@
 
 import { createApp } from '../src/app.js';
 
-const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'FIREBASE_PROJECT_ID'];
+const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
 const missing = REQUIRED_ENV.filter((key) => !process.env[key]);
 if (missing.length) {
   // Don't process.exit() here — that would crash the whole serverless

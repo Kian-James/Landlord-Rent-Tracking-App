@@ -1,7 +1,7 @@
 {
   "name": "rent-tracker-backend",
   "version": "2.0.0",
-  "description": "Landlord Rent Tracker - REST API (Firebase Auth + Supabase Postgres)",
+  "description": "Landlord Rent Tracker - REST API (Supabase Auth + Supabase Postgres)",
   "type": "module",
   "main": "server.js",
   "engines": {
@@ -20,15 +20,11 @@
     "express": "^4.19.2",
     "express-rate-limit": "^7.2.0",
     "express-validator": "^7.1.0",
-    "firebase-admin": "^14.4.0",
     "helmet": "^7.1.0",
     "hpp": "^0.2.3",
     "node-cron": "^4.6.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
-  },
-  "overrides": {
-    "jose": "4.15.9"
   }
 }

@@ -9,7 +9,6 @@ for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
     process.exit(1);
   }
 }
-process.env.FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'smoke-test-project';
 
 const RUN_ID = Date.now();
 const UID_A = `smoke-${RUN_ID}-a`;
@@ -62,14 +61,12 @@ function assert(condition, message) {
 }
 
 async function main() {
-  const { firebaseAuth } = await import('../src/config/firebase.js');
-  firebaseAuth().verifyIdToken = async (token) => {
-    if (!token.startsWith('test:')) throw new Error('bad token');
-    const [uid, email, name] = token.slice(5).split('|');
-    return { uid, email, name };
-  };
-
   const { supabase } = await import('../src/config/supabase.js');
+  supabase.auth.getUser = async (token) => {
+    if (!token.startsWith('test:')) return { data: { user: null }, error: new Error('bad token') };
+    const [uid, email, name] = token.slice(5).split('|');
+    return { data: { user: { id: uid, email, user_metadata: { name } } }, error: null };
+  };
 
   const { createApp } = await import('../src/app.js');
   const app = createApp();
@@ -88,7 +85,7 @@ async function run(call) {
   const token = tokenFor(UID_A, 'juan@example.com', 'Juan Santos');
   let res = await call('GET', '/api/auth/user', { token });
   assert(res.status === 200, `me returns 200 (got ${res.status}: ${JSON.stringify(res.body)})`);
-  assert(res.body.landlord.email === 'juan@example.com' && res.body.landlord._id === UID_A, 'landlord row auto-created from the Firebase token');
+  assert(res.body.landlord.email === 'juan@example.com' && res.body.landlord._id === UID_A, 'landlord row auto-created from the Supabase auth token');
   assert(res.body.landlord.name === 'Juan Santos', 'name comes from the token');
 
   res = await call('GET', '/api/auth/user', {});

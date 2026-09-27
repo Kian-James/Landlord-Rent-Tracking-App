@@ -2,13 +2,13 @@ import { Router } from 'express';
 import { body } from 'express-validator';
 import validate from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
-import * as ctrl from '../controllers/unitController.js';
+import * as controller from '../controllers/unitController.js';
 
 const router = Router();
 
 router.use(requireAuth);
 
-router.get('/', ctrl.list);
+router.get('/', controller.list);
 
 router.post(
   '/',
@@ -24,7 +24,7 @@ router.post(
     body('utilities.wifi.dueDay').optional({ values: 'falsy' }).isInt({ min: 1, max: 31 }).withMessage('Wifi due day must be between 1 and 31.'),
   ],
   validate,
-  ctrl.create
+  controller.create
 );
 
 router.patch(
@@ -41,8 +41,8 @@ router.patch(
     body('utilities.wifi.dueDay').optional({ values: 'falsy' }).isInt({ min: 1, max: 31 }).withMessage('Wifi due day must be between 1 and 31.'),
   ],
   validate,
-  ctrl.update
+  controller.update
 );
-router.delete('/:id', ctrl.remove);
+router.delete('/:id', controller.remove);
 
 export default router;

@@ -4,6 +4,7 @@ import Layout from './components/Layout.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
+import AuthCallback from './pages/AuthCallback.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Properties from './pages/Properties.jsx';
 import Tenants from './pages/Tenants.jsx';
@@ -16,6 +17,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
 
       <Route
         path="/"

@@ -23,7 +23,7 @@ client/
     │   ├── authError.js
     │   ├── billIcons.jsx
     │   ├── calendarGrid.js
-    │   └── firebase.js
+    │   └── supabase.js
     ├── components/
     │   ├── Avatar.jsx
     │   ├── BentoCard.jsx
@@ -37,6 +37,7 @@ client/
     │   ├── StatusBadge.jsx
     │   └── UserMenu.jsx
     └── pages/
+        ├── AuthCallback.jsx
         ├── BillChecklist.jsx
         ├── Calendar.jsx
         ├── Dashboard.jsx

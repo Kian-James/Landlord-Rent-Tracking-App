@@ -1,7 +1,7 @@
 import asyncHandler from '../utils/asyncHandler.js';
 
 const user = asyncHandler(async (req, res) => {
-  res.json({ landlord: req.landlord });
+  res.json({ landlord: req.landlord, isNewLandlord: !!req.isNewLandlord });
 });
 
 export { user };

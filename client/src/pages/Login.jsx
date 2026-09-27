@@ -34,7 +34,7 @@ export default function Login() {
         <p className="mt-1 text-sm text-ink/60">Log in to see who's paid and what needs attention.</p>
 
         <div className="mt-6">
-          <GoogleAuthButton onSuccess={() => navigate('/')} onError={setError} />
+          <GoogleAuthButton onError={setError} />
         </div>
 
         <div className="my-5 flex items-center gap-3">

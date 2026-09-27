@@ -2,14 +2,14 @@ import { Router } from 'express';
 import { body } from 'express-validator';
 import validate from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
-import * as ctrl from '../controllers/contractController.js';
+import * as controller from '../controllers/contractController.js';
 
 const router = Router();
 
 router.use(requireAuth);
 
-router.get('/', ctrl.list);
-router.get('/expiring-soon', ctrl.expiringSoon);
+router.get('/', controller.list);
+router.get('/expiring-soon', controller.expiringSoon);
 
 router.post(
   '/:id/renew',
@@ -23,7 +23,7 @@ router.post(
     body('depositAmount').optional({ values: 'falsy' }).isFloat({ min: 0 }),
   ],
   validate,
-  ctrl.renew
+  controller.renew
 );
 
 export default router;

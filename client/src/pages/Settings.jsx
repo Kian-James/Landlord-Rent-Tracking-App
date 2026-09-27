@@ -5,7 +5,7 @@ import { friendlyAuthError } from '../lib/authError.js';
 import BentoCard from '../components/BentoCard.jsx';
 
 export default function Settings() {
-  const { landlord, setLandlord, canChangePassword, changePassword: changeFirebasePassword } = useAuth();
+  const { landlord, setLandlord, canChangePassword, changePassword: changeAccountPassword } = useAuth();
   const [name, setName] = useState(landlord?.name || '');
   const [prefs, setPrefs] = useState(landlord?.notificationPreferences || {});
   const [message, setMessage] = useState('');
@@ -30,7 +30,7 @@ export default function Settings() {
     e.preventDefault();
     setPasswordMessage('');
     try {
-      await changeFirebasePassword(passwordForm.currentPassword, passwordForm.newPassword);
+      await changeAccountPassword(passwordForm.currentPassword, passwordForm.newPassword);
       setPasswordForm({ currentPassword: '', newPassword: '' });
       setPasswordMessage('Password updated.');
     } catch (err) {

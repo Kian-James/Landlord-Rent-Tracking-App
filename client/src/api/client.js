@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { auth } from '../lib/firebase.js';
+import { supabase } from '../lib/supabase.js';
 
 let onUnauthorized = () => {};
 
@@ -11,8 +11,8 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ? `${import.meta.env.VITE
 const client = axios.create({ baseURL: API_BASE_URL });
 
 client.interceptors.request.use(async (config) => {
-  const user = auth.currentUser;
-  if (user) config.headers.Authorization = `Bearer ${await user.getIdToken()}`;
+  const { data } = await supabase.auth.getSession();
+  if (data.session) config.headers.Authorization = `Bearer ${data.session.access_token}`;
   return config;
 });
 
@@ -20,14 +20,15 @@ client.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
-    const user = auth.currentUser;
-    if (error.response?.status === 401 && user && !original._retried) {
+    if (error.response?.status === 401 && !original._retried) {
       original._retried = true;
       try {
-        original.headers.Authorization = `Bearer ${await user.getIdToken(true)}`;
+        const { data, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !data.session) throw refreshError || new Error('No session to refresh.');
+        original.headers.Authorization = `Bearer ${data.session.access_token}`;
         return await client(original);
       } catch (retryErr) {
-        if (retryErr.response?.status === 401) onUnauthorized();
+        onUnauthorized();
         return Promise.reject(retryErr);
       }
     }

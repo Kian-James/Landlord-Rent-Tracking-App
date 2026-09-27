@@ -1,47 +1,45 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import {
-  EmailAuthProvider,
-  GoogleAuthProvider,
-  createUserWithEmailAndPassword,
-  getAdditionalUserInfo,
-  onAuthStateChanged,
-  reauthenticateWithCredential,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  signOut,
-  updatePassword,
-  updateProfile,
-} from 'firebase/auth';
 import client, { setUnauthorizedHandler } from '../api/client.js';
-import { auth } from '../lib/firebase.js';
+import { supabase } from '../lib/supabase.js';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [landlord, setLandlord] = useState(null);
+  const [identities, setIdentities] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const handlingSignIn = useRef(false);
+  const newLandlordRef = useRef(false);
 
-
-  const loadLandlord = useCallback(async () => {
+  const loadLandlord = useCallback(async (user) => {
     const { data } = await client.get('/auth/user');
     setLandlord(data.landlord);
+    setIdentities(user?.identities?.map((i) => i.provider) || []);
+    newLandlordRef.current = !!data.isNewLandlord;
     return data.landlord;
   }, []);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
       setLandlord(null);
-      signOut(auth);
+      supabase.auth.signOut();
     });
   }, []);
 
   useEffect(() => {
-    return onAuthStateChanged(auth, async (user) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (handlingSignIn.current) return;
+
+      if (event === 'SIGNED_OUT') {
+        setLandlord(null);
+        setLoading(false);
+        return;
+      }
+      if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN') return;
+
       try {
-        if (user) await loadLandlord();
+        if (session?.user) await loadLandlord(session.user);
         else setLandlord(null);
       } catch {
         setLandlord(null);
@@ -49,6 +47,8 @@ export function AuthProvider({ children }) {
         setLoading(false);
       }
     });
+
+    return () => subscription.subscription.unsubscribe();
   }, [loadLandlord]);
 
   const runSignIn = useCallback(async (flow) => {
@@ -56,7 +56,8 @@ export function AuthProvider({ children }) {
     try {
       return await flow();
     } catch (err) {
-      if (auth.currentUser) await signOut(auth);
+      const { data } = await supabase.auth.getSession();
+      if (data.session) await supabase.auth.signOut();
       throw err;
     } finally {
       handlingSignIn.current = false;
@@ -66,46 +67,76 @@ export function AuthProvider({ children }) {
   const login = useCallback(
     (email, password) =>
       runSignIn(async () => {
-        await signInWithEmailAndPassword(auth, email, password);
-        return loadLandlord();
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        return loadLandlord(data.user);
       }),
     [runSignIn, loadLandlord]
   );
 
+  // Supabase projects can require email confirmation before a session is
+  // issued. When that is on, signUp() succeeds but returns no session -
+  // there is nothing to load yet, so this returns needsEmailConfirmation
+  // instead of throwing, and the caller decides what to show.
   const register = useCallback(
     (name, email, password) =>
       runSignIn(async () => {
-        const { user } = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(user, { displayName: name });
-        await user.getIdToken(true);
-        return loadLandlord();
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { name } },
+        });
+        if (error) throw error;
+        if (!data.session) return { landlord: null, needsEmailConfirmation: true };
+        return { landlord: await loadLandlord(data.user), needsEmailConfirmation: false };
       }),
     [runSignIn, loadLandlord]
   );
 
-  const loginWithGoogle = useCallback(
-    () =>
-      runSignIn(async () => {
-        const result = await signInWithPopup(auth, new GoogleAuthProvider());
-        const isNewUser = getAdditionalUserInfo(result)?.isNewUser ?? false;
-        const signedInLandlord = await loadLandlord();
-        return { landlord: signedInLandlord, isNewUser };
-      }),
-    [runSignIn, loadLandlord]
-  );
+  // Google sign-in redirects the whole page to Google and back, so nothing
+  // meaningful can run after this resolves - the SPA is being torn down.
+  // Whatever happens next happens in the /auth/callback page once the
+  // browser returns and this context's own onAuthStateChange fires again.
+  const loginWithGoogle = useCallback(async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}auth/callback` },
+    });
+    if (error) throw error;
+  }, []);
+
+  // AuthCallback reads this exactly once, right after a fresh sign-in, to
+  // decide whether to route to onboarding. Consuming it clears it so a
+  // later token refresh or tab restore can't replay the "new" routing.
+  const consumeNewLandlordFlag = useCallback(() => {
+    const value = newLandlordRef.current;
+    newLandlordRef.current = false;
+    return value;
+  }, []);
 
   const logout = useCallback(async () => {
-    await signOut(auth);
+    await supabase.auth.signOut();
     setLandlord(null);
   }, []);
 
-  const canChangePassword = !!auth.currentUser?.providerData.some((p) => p.providerId === 'password');
+  const canChangePassword = identities.includes('email');
 
-  const changePassword = useCallback(async (currentPassword, newPassword) => {
-    const user = auth.currentUser;
-    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, currentPassword));
-    await updatePassword(user, newPassword);
-  }, []);
+  // Supabase has no separate re-authenticate call. Signing in again with the
+  // current password is what proves it's really the account holder before
+  // updateUser() changes it.
+  const changePassword = useCallback(
+    async (currentPassword, newPassword) => {
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: landlord.email,
+        password: currentPassword,
+      });
+      if (verifyError) throw verifyError;
+
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+    },
+    [landlord]
+  );
 
   return (
     <AuthContext.Provider
@@ -119,6 +150,7 @@ export function AuthProvider({ children }) {
         logout,
         canChangePassword,
         changePassword,
+        consumeNewLandlordFlag,
       }}
     >
       {children}
