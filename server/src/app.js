@@ -33,9 +33,9 @@ function createApp() {
   app.use(express.json({ limit: '1mb' }));
   app.use(hpp());
 
-  app.get('/healthz', (req, res) => res.json({ ok: true }));
+  app.get('/health', (req, res) => res.json({ ok: true }));
 
-  app.get('/readyz', async (req, res) => {
+  app.get('/ready', async (req, res) => {
     const { error } = await supabase.from('landlords').select('id').limit(1);
     if (error) {
       console.error('readyz failed:', error.message);
