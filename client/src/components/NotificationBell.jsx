@@ -9,7 +9,12 @@ const DESTINATION_BY_TYPE = {
   rent_due_today: '/bills',
   rent_overdue: '/bills',
   utility_bill_overdue: '/bills',
+  receipt_received: '/bills',
+  payment_awaiting_verification: '/bills',
+  payment_approved: '/bills',
+  payment_rejected: '/bills',
   contract_expiring: '/tenants',
+  contract_renewed: '/tenants',
 };
 
 function timeAgo(dateStr) {
@@ -22,7 +27,7 @@ function timeAgo(dateStr) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-export default function NotificationBell() {
+export default function NotificationBell({ variant = 'default', className = '' }) {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -89,7 +94,7 @@ export default function NotificationBell() {
   return (
     <div
       ref={containerRef}
-      className="relative"
+      className={`relative ${className}`}
       onMouseEnter={() => {
         cancelScheduledClose();
         setOpen(true);
@@ -98,20 +103,24 @@ export default function NotificationBell() {
     >
       <button
         onClick={() => setOpen((o) => !o)}
-        className="relative rounded-full border border-line p-2 text-ink/60 hover:bg-canvas"
+        className={
+          variant === 'bar'
+            ? 'relative flex h-11 w-11 items-center justify-center rounded-full bg-canvas text-ink/70 hover:bg-line'
+            : 'relative rounded-full border border-line p-2 text-ink/60 hover:bg-canvas'
+        }
         aria-label="Notifications"
         aria-expanded={open}
       >
         <span aria-hidden="true"><FontAwesomeIcon icon={faBell} /></span>
         {unreadCount > 0 && (
-          <span className="absolute -right-2 -top-2 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-status-overdue px-1 text-[9px] font-bold leading-none text-white">
+          <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-status-overdue px-1 text-[9px] font-bold leading-none text-white">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
 
       <div
-        className={`absolute right-4 top-full z-30 -mt-3 w-80 origin-top-right rounded-lg border border-line bg-surface shadow-lg transition-all duration-150 ease-out ${
+        className={`absolute right-0 top-full z-50 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] origin-top-right overflow-hidden rounded-xl border border-line bg-surface shadow-xl transition-all duration-150 ease-out ${
           open ? 'pointer-events-auto scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
         }`}
       >
@@ -124,24 +133,24 @@ export default function NotificationBell() {
           )}
         </div>
 
-        <div className="max-h-96 overflow-y-auto">
+        <div className="max-h-[26rem] overflow-y-auto">
           {notifications.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-ink/50">You're all caught up.</p>
+            <p className="px-4 py-8 text-center text-sm text-ink/50">You're all caught up. No notifications right now.</p>
           ) : (
             notifications.map((n) => (
               <button
                 key={n._id}
                 onClick={() => handleNotificationClick(n)}
                 className={`block w-full border-b border-line px-4 py-3 text-left last:border-b-0 hover:bg-canvas ${
-                  n.read ? '' : 'bg-brand-soft/40'
+                  n.read ? '' : 'bg-brand-soft/60'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium">{n.title}</p>
+                  <p className={`text-sm text-ink ${n.read ? 'font-medium' : 'font-semibold'}`}>{n.title}</p>
                   {!n.read && <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />}
                 </div>
-                <p className="mt-0.5 text-xs text-ink/60">{n.message}</p>
-                <p className="mt-1 text-[11px] text-ink/40">{timeAgo(n.createdAt)}</p>
+                <p className="mt-1 whitespace-normal break-words text-[13px] leading-snug text-ink/75">{n.message}</p>
+                <p className="mt-1.5 text-[11px] text-ink/50">{timeAgo(n.createdAt)}</p>
               </button>
             ))
           )}
