@@ -4,6 +4,12 @@ import BentoCard from '../components/BentoCard.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
 import Avatar from '../components/Avatar.jsx';
 import { Skeleton, SkeletonText } from '../components/Skeleton.jsx';
+import MonthPicker from '../components/MonthPicker.jsx';
+import ExportRangeModal from '../components/ExportRangeModal.jsx';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faFileExcel, faShieldHalved, faTriangleExclamation, faWallet } from '@fortawesome/free-solid-svg-icons';
+import CycleBreakdownModal from '../components/CycleBreakdownModal.jsx';
+import { fetchLedgerRange, downloadLedgerWorkbook } from '../lib/ledgerExport.js';
 import { buildMonthGrid, periodKeyOf } from '../lib/calendarGrid.js';
 import { BILL_TYPE_META, BillIcon } from '../lib/billIcons.jsx';
 
@@ -17,10 +23,14 @@ const DOT_FOR_STATUS = {
   pending: 'bg-status-pending',
   overdue: 'bg-status-overdue',
   upcoming: 'bg-status-upcoming',
+  verification: 'bg-status-verify',
 };
 
-const LEDGER_FILTERS = ['all', 'paid', 'pending', 'overdue', 'upcoming'];
+const LEDGER_FILTERS = ['all', 'paid', 'pending', 'overdue', 'upcoming', 'verification'];
 
+// Mirrors the real layout (summary strip, month grid + bills sidebar,
+// ledger table) so switching months doesn't flash an empty page while the
+// new month's data comes in.
 function CalendarSkeleton() {
   return (
     <div className="space-y-6">
@@ -84,6 +94,8 @@ function normalizeUtility(b) {
     billType: b.type,
     tenantName: b.tenant?.fullName,
     unitName: b.unit?.name,
+    // Once paid, show what was ACTUALLY paid rather than the original
+    // (possibly never-set) expected amount.
     amount: b.status === 'paid' && b.paidAmount != null ? b.paidAmount : b.amountDue,
     dueDate: b.dueDate,
     status: b.status,
@@ -92,9 +104,37 @@ function normalizeUtility(b) {
 
 export default function Calendar() {
   const [cursor, setCursor] = useState(() => new Date());
+  const [exportOpen, setExportOpen] = useState(false);
+  // Which summary card's breakdown is open: 'target' | 'collected' | 'remaining'.
+  const [breakdown, setBreakdown] = useState(null);
+
+  // The calendar's own content (a fixed 5-or-6-week grid) is always what
+  // should decide the shared row height - the bills list next to it can
+  // have anywhere from 0 to dozens of entries, and letting either CSS
+  // grid/flex stretch (which sizes the row to whichever sibling's content
+  // is naturally *tallest*) or a hardcoded pixel guess drive the height
+  // means a long bill list drags the calendar taller instead of scrolling
+  // within it. Measuring the calendar directly and applying that as an
+  // explicit height on the bills card is the only way to make the
+  // calendar the source of truth regardless of how many bills there are.
   const calendarCardRef = useRef(null);
   const [calendarHeight, setCalendarHeight] = useState(null);
+  const [records, setRecords] = useState([]);
+  const [utilityBills, setUtilityBills] = useState([]);
+  const [ledgerFilter, setLedgerFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
 
+  // Re-runs whenever `cursor` changes (a new month can have 5 vs 6 weeks,
+  // changing the calendar's natural height) AND whenever `loading` flips
+  // to false. That second trigger matters because calendarCardRef is only
+  // attached to the real calendar grid - while `loading` is true this
+  // component early-returns <CalendarSkeleton /> instead, so the ref is
+  // null. Without `loading` in the deps, the very first successful
+  // measurement (right after the initial page-load fetch resolves) would
+  // never happen, since that transition doesn't change `cursor` and so
+  // wouldn't otherwise re-trigger this effect - leaving calendarHeight
+  // stuck at null and the bills list unbounded until the user happened to
+  // change months.
   useLayoutEffect(() => {
     const el = calendarCardRef.current;
     if (!el) return undefined;
@@ -104,16 +144,20 @@ export default function Calendar() {
 
     const observer = new ResizeObserver(measure);
     observer.observe(el);
-    return () => observer.disconnect();
-  }, [cursor]);
-  const [records, setRecords] = useState([]);
-  const [utilityBills, setUtilityBills] = useState([]);
-  const [ledgerFilter, setLedgerFilter] = useState('all');
-  const [loading, setLoading] = useState(true);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [cursor, loading]);
 
   const period = periodKeyOf(cursor);
   const today = new Date();
 
+  // Bills generate themselves for whatever month is being viewed - no
+  // manual button to remember to click. Generation is idempotent (a
+  // unique index prevents duplicates), so it's safe to call every time
+  // the viewed month changes rather than requiring an explicit action.
   const load = () => {
     Promise.all([
       client.post('/rent-records/generate', { referenceDate: cursor.toISOString() }),
@@ -133,10 +177,14 @@ export default function Calendar() {
   useEffect(() => {
     setLoading(true);
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
 
   const weeks = useMemo(() => buildMonthGrid(cursor.getFullYear(), cursor.getMonth()), [cursor]);
 
+  // Every due item (rent + all utility types) normalized into one shape and
+  // grouped by day-of-month, so the calendar and the "This Month's Bills"
+  // list are always showing the exact same data.
   const allItems = useMemo(
     () => [...records.map(normalizeRent), ...utilityBills.map(normalizeUtility)],
     [records, utilityBills]
@@ -166,58 +214,190 @@ export default function Calendar() {
     .filter((r) => ledgerFilter === 'all' || r.status === ledgerFilter)
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
 
-  const monthLabel = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const isCurrentMonth = periodKeyOf(cursor) === periodKeyOf(today);
 
   const upcomingBills = allItems
     .filter((i) => i.status !== 'paid')
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
 
+  const collectedPct = totals.expected > 0 ? Math.round((totals.paid / totals.expected) * 100) : 0;
+  const overdueTenantCount = new Set(records.filter((r) => r.status === 'overdue').map((r) => r.tenant?._id)).size;
+  const quarter = Math.floor(cursor.getMonth() / 3) + 1;
+
+  // Extra figures for the summary cards' captions and bars.
+  const rentPaidCount = records.filter((r) => r.status === 'paid').length;
+  const overdueAmount = records.filter((r) => r.status === 'overdue').reduce((sum, r) => sum + r.amountDue, 0);
+  const notLateAmount = totals.outstanding - overdueAmount;
+  const overduePct = totals.outstanding > 0 ? Math.round((overdueAmount / totals.outstanding) * 100) : 0;
+  const utilitiesDueTotal = utilityBills.reduce((sum, b) => sum + (b.amountDue || 0), 0);
+  const periodLabel = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  // Summary cards double as buttons that open a breakdown modal (same pattern
+  // as the Bill Checklist cards).
+  const cardButton = (kind, label) => ({
+    role: 'button',
+    tabIndex: 0,
+    'aria-label': label,
+    title: 'View breakdown',
+    onClick: () => setBreakdown(kind),
+    onKeyDown: (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        setBreakdown(kind);
+      }
+    },
+  });
+  const CLICKABLE =
+    'cursor-pointer transition duration-150 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40';
+
+  // Fetches every month in the chosen range, then builds and downloads the
+  // workbook. Errors bubble up to the export dialog, which shows them inline.
+  async function exportLedgerExcel(from, to) {
+    const data = await fetchLedgerRange(client, from, to);
+    if (data.rentRecords.length === 0 && data.utilityRecords.length === 0) {
+      throw new Error('There are no rent or utility bills in that range to export.');
+    }
+    await downloadLedgerWorkbook(data, from, to);
+  }
+
   if (loading) return <CalendarSkeleton />;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Rent &amp; Bill Calendar</h1>
+      <BentoCard className="relative">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-bento" aria-hidden="true">
+          <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 rounded-full border border-line px-1 py-1">
+        <div className="relative flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
+              <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+              Fiscal Operations &middot; Q{quarter} Schedule
+            </div>
+            <h1 className="mt-1 text-3xl font-bold tracking-tight">Rent &amp; Bill Calendar</h1>
+            <p className="mt-1 max-w-xl text-sm text-ink/50">
+              Visual chronological schedule of all rent, electricity, water, and wifi collections across all managed units.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex h-11 items-center gap-1 rounded-full bg-canvas px-1">
+              <button
+                onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
+                className="flex h-9 w-9 items-center justify-center rounded-full text-base text-ink/60 hover:bg-line"
+                aria-label="Previous month"
+              >
+                &lsaquo;
+              </button>
+              <MonthPicker
+                value={cursor}
+                onChange={setCursor}
+                renderTrigger={({ open, toggle, label }) => (
+                  <button
+                    onClick={toggle}
+                    aria-haspopup="dialog"
+                    aria-expanded={open}
+                    className={`flex h-9 items-center rounded-full px-4 text-sm font-medium transition-colors ${
+                      open ? 'bg-surface shadow-sm' : 'hover:bg-line'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                )}
+              />
+              <button
+                onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
+                className="flex h-9 w-9 items-center justify-center rounded-full text-base text-ink/60 hover:bg-line"
+                aria-label="Next month"
+              >
+                &rsaquo;
+              </button>
+            </div>
             <button
-              onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
-              className="rounded-full px-2 py-1 text-sm text-ink/60 hover:bg-canvas"
-              aria-label="Previous month"
+              onClick={() => setExportOpen(true)}
+              className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 text-sm font-medium text-white hover:bg-ink/90"
             >
-              &lsaquo;
-            </button>
-            <span className="px-2 text-sm font-medium">{monthLabel}</span>
-            <button
-              onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
-              className="rounded-full px-2 py-1 text-sm text-ink/60 hover:bg-canvas"
-              aria-label="Next month"
-            >
-              &rsaquo;
+              <FontAwesomeIcon icon={faFileExcel} />
+              Export Excel
             </button>
           </div>
         </div>
+      </BentoCard>
+
+      <ExportRangeModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        defaultMonth={new Date(cursor.getFullYear(), cursor.getMonth(), 1)}
+        onExport={exportLedgerExcel}
+      />
+
+      {/* Cycle summary strip - icon chip + label, value, then a bar/caption.
+          Each card opens a breakdown modal. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <BentoCard className={CLICKABLE} {...cardButton('target', 'Cycle target, view breakdown')}>
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-canvas text-ink/60">
+              <FontAwesomeIcon icon={faWallet} className="h-3.5 w-3.5" />
+            </span>
+            <p className="text-sm font-medium text-ink/70">Cycle Target</p>
+          </div>
+          <p className="metric mt-3 text-metric">{peso(totals.expected)}</p>
+          <p className="mt-1 text-xs text-ink/45">{records.length} rent bill(s) scheduled this cycle</p>
+          {utilitiesDueTotal > 0 && (
+            <p className="mt-0.5 text-xs text-ink/35">+ {peso(utilitiesDueTotal)} utilities also due</p>
+          )}
+        </BentoCard>
+
+        <BentoCard className={CLICKABLE} {...cardButton('collected', 'Collected to date, view breakdown')}>
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-status-paidSoft text-status-paid">
+              <FontAwesomeIcon icon={faShieldHalved} className="h-3.5 w-3.5" />
+            </span>
+            <p className="text-sm font-medium text-ink/70">Collected to Date</p>
+            <span className="ml-auto rounded-full bg-status-paidSoft px-2 py-0.5 text-[10px] font-semibold text-status-paid">
+              {collectedPct}%
+            </span>
+          </div>
+          <p className="metric mt-3 text-metric text-status-paid">{peso(totals.paid)}</p>
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-line">
+            <div className="h-full rounded-full bg-status-paid transition-all" style={{ width: `${collectedPct}%` }} />
+          </div>
+          <p className="mt-1.5 text-xs text-ink/45">
+            {rentPaidCount} of {records.length} rent bill(s) paid
+          </p>
+        </BentoCard>
+
+        <BentoCard className={CLICKABLE} {...cardButton('remaining', 'Remaining arrears, view breakdown')}>
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-status-overdueSoft text-status-overdue">
+              <FontAwesomeIcon icon={faTriangleExclamation} className="h-3.5 w-3.5" />
+            </span>
+            <p className="text-sm font-medium text-ink/70">Remaining &middot; Arrears</p>
+            {overdueTenantCount > 0 && (
+              <span className="ml-auto rounded-full bg-status-overdueSoft px-2 py-0.5 text-[10px] font-semibold text-status-overdue">
+                {overdueTenantCount} Critical
+              </span>
+            )}
+          </div>
+          <p className="metric mt-3 text-metric text-status-overdue">{peso(totals.outstanding)}</p>
+          <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-line">
+            <div className="h-full bg-status-overdue transition-all" style={{ width: `${overduePct}%` }} />
+            <div className="h-full bg-status-upcoming transition-all" style={{ width: `${totals.outstanding > 0 ? 100 - overduePct : 0}%` }} />
+          </div>
+          <p className="mt-1.5 text-xs text-ink/45">
+            {peso(overdueAmount)} overdue &middot; {peso(notLateAmount)} not late yet
+          </p>
+        </BentoCard>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <BentoCard>
-          <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Cycle Target</p>
-          <p className="mt-1 text-xl font-semibold">{peso(totals.expected)}</p>
-        </BentoCard>
-        <BentoCard>
-          <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Collected</p>
-          <p className="mt-1 text-xl font-semibold text-status-paid">{peso(totals.paid)}</p>
-        </BentoCard>
-        <BentoCard>
-          <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Outstanding</p>
-          <p className="mt-1 text-xl font-semibold text-status-overdue">{peso(totals.outstanding)}</p>
-        </BentoCard>
-      </div>
+      <CycleBreakdownModal
+        kind={breakdown}
+        items={allItems}
+        periodLabel={periodLabel}
+        onClose={() => setBreakdown(null)}
+      />
 
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+        {/* Month grid */}
         <BentoCard ref={calendarCardRef} span={2} className="overflow-visible">
           <div className="grid grid-cols-7 gap-1.5 text-center text-[10px] font-medium uppercase tracking-wide text-ink/40">
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
@@ -236,7 +416,7 @@ export default function Calendar() {
                   key={i}
                   className={`group relative min-h-[72px] rounded-lg border p-1.5 text-left transition-shadow ${
                     date ? 'border-line' : 'border-transparent'
-                  } ${isToday ? 'bg-ink text-white' : hasItems ? 'bg-canvas ring-1 ring-line hover:ring-2 hover:ring-ink/30' : 'bg-canvas'}`}
+                  } ${isToday ? 'bg-primary text-white' : hasItems ? 'bg-canvas ring-1 ring-line hover:ring-2 hover:ring-primary/30' : 'bg-canvas'}`}
                 >
                   {date && (
                     <>
@@ -245,7 +425,7 @@ export default function Calendar() {
                         {hasItems && (
                           <span
                             className={`flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-bold text-white ${
-                              hasOverdue ? 'bg-status-overdue' : 'bg-ink/70'
+                              hasOverdue ? 'bg-status-overdue' : 'bg-primary'
                             }`}
                           >
                             {dayItems.length}
@@ -263,6 +443,7 @@ export default function Calendar() {
                         ))}
                       </div>
 
+                      {/* Hover popover: enlarges on hover and lists every bill due that day */}
                       {hasItems && (
                         <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 w-64 -translate-x-1/2 scale-90 rounded-lg border border-line bg-surface p-3 text-left opacity-0 shadow-lg transition-all duration-150 group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100">
                           <p className="text-xs font-semibold text-ink/70">
@@ -294,7 +475,7 @@ export default function Calendar() {
           </div>
 
           <div className="mt-4 flex flex-wrap gap-3 text-[11px] text-ink/50">
-            {Object.entries({ paid: 'Paid', pending: 'Pending', overdue: 'Overdue', upcoming: 'Upcoming' }).map(
+            {Object.entries({ paid: 'Paid', pending: 'Pending', overdue: 'Overdue', upcoming: 'Upcoming', verification: 'Verification' }).map(
               ([status, label]) => (
                 <span key={status} className="flex items-center gap-1">
                   <span className={`h-2 w-2 rounded-full ${DOT_FOR_STATUS[status]}`} />
@@ -308,9 +489,16 @@ export default function Calendar() {
           </p>
         </BentoCard>
 
+        {/* This Month's Bills - unified rent + utility list. Height is
+            explicitly capped to the calendar's measured height (see
+            calendarCardRef above) so the calendar always dictates the
+            shared height, no matter how many bills there are - the list
+            scrolls internally (scrollbar hidden, but wheel/trackpad/touch/
+            keyboard scrolling all still work) instead of ever growing
+            past that height or dragging the calendar taller. */}
         <BentoCard
-          className="flex flex-col p-0"
-          style={{ height: calendarHeight ? `${calendarHeight}px` : undefined, maxHeight: calendarHeight ? `${calendarHeight}px` : '640px' }}
+          className="flex flex-col overflow-hidden p-0"
+          style={calendarHeight ? { height: `${calendarHeight}px`, maxHeight: `${calendarHeight}px` } : undefined}
         >
           <h2 className="shrink-0 p-5 pb-3 text-base font-semibold">This Month's Bills</h2>
           <ul className="scrollbar-hide min-h-0 flex-1 space-y-2 overflow-y-auto px-5 pb-5">
@@ -340,6 +528,7 @@ export default function Calendar() {
         </BentoCard>
       </div>
 
+      {/* Detailed rent ledger table */}
       <BentoCard className="p-0">
         <div className="flex flex-wrap items-center justify-between gap-2 p-5 pb-3">
           <h2 className="text-base font-semibold">Detailed Rent Ledger</h2>
@@ -349,7 +538,7 @@ export default function Calendar() {
                 key={f}
                 onClick={() => setLedgerFilter(f)}
                 className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${
-                  ledgerFilter === f ? 'bg-ink text-white' : 'border border-line text-ink/60'
+                  ledgerFilter === f ? 'bg-primary text-white' : 'border border-line text-ink/60'
                 }`}
               >
                 {f}
