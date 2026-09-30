@@ -5,7 +5,7 @@ const BentoCard = forwardRef(function BentoCard({ children, className = '', span
   return (
     <Tag
       ref={ref}
-      className={`rounded-bento border border-line bg-surface p-5 shadow-bento ${spanClass} ${className}`}
+      className={`rounded-bento bg-surface p-6 shadow-bento ${spanClass} ${className}`}
       {...rest}
     >
       {children}

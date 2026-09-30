@@ -1,7 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronDown } from '@fortawesome/free-solid-svg-icons';
 
 export default function UserMenu({ landlord, onLogout }) {
   const [open, setOpen] = useState(false);
@@ -37,31 +35,25 @@ export default function UserMenu({ landlord, onLogout }) {
   };
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative mt-2">
       <button
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex items-center gap-2 rounded-full border border-transparent py-1 pl-1 pr-2 hover:border-line hover:bg-canvas"
+        title={landlord?.name}
+        className={`flex h-11 w-11 items-center justify-center rounded-2xl text-xs font-semibold transition-colors ${
+          open ? 'bg-primary text-white' : 'bg-primary-light text-primary-dark hover:bg-line'
+        }`}
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-ink text-xs font-semibold text-white">
-          {initials || '?'}
-        </span>
-        <span className="hidden text-left leading-tight md:block">
-          <span className="block text-xs font-medium">{landlord?.name}</span>
-          <span className="block text-[10px] text-ink/45">Owner</span>
-        </span>
-        <span className={`text-[10px] text-ink/40 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">
-          <FontAwesomeIcon icon={faChevronDown} />
-        </span>
+        {initials || '?'}
       </button>
 
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-30 mt-2 w-48 overflow-hidden rounded-lg border border-line bg-surface shadow-bento"
+          className="absolute bottom-0 left-full z-30 ml-3 w-48 overflow-hidden rounded-lg border border-line bg-surface shadow-bento"
         >
-          <div className="border-b border-line px-3 py-2 md:hidden">
+          <div className="border-b border-line px-3 py-2">
             <p className="truncate text-xs font-medium">{landlord?.name}</p>
             <p className="truncate text-[10px] text-ink/45">{landlord?.email}</p>
           </div>

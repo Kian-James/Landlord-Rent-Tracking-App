@@ -10,8 +10,32 @@ body {
   @apply bg-canvas text-ink antialiased;
 }
 
+/* Headings and section/card titles use Manrope per the type scale; body
+   copy, labels, and controls stay on Inter (set as the base sans above).
+   Semantic <h1>-<h4> tags are used consistently for page/section/card
+   titles throughout the app, so this single rule carries the type system
+   without having to touch every heading individually. */
+h1, h2, h3, h4 {
+  font-family: 'Manrope', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+h1 { font-size: 32px; line-height: 1.2; }
+h2 { font-size: 18px; line-height: 1.3; font-weight: 600; }
+h3 { font-size: 16px; line-height: 1.35; font-weight: 600; }
+
+/* Financial figures and dashboard metrics (rent amounts, totals,
+   percentages) share this class for the bold Manrope treatment the spec
+   calls for, wherever they aren't already inside a heading tag. */
+.metric {
+  font-family: 'Manrope', system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* Visible keyboard focus everywhere - accessibility floor, not decoration. */
 :focus-visible {
-  outline: 2px solid #14532D;
+  outline: 2px solid #2563EB;
   outline-offset: 2px;
 }
 
@@ -20,4 +44,16 @@ body {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* Hides the scrollbar while keeping the element fully scrollable (mouse
+   wheel, trackpad, touch, and keyboard scrolling all still work) - used
+   for compact lists like the Calendar's "This Month's Bills" panel where
+   a visible scrollbar track would be visual clutter. */
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* old Edge/IE */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, new Edge */
 }
