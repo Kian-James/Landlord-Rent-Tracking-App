@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGear } from '@fortawesome/free-solid-svg-icons';
+import { faGear, faCircleInfo } from '@fortawesome/free-solid-svg-icons';
 import client from '../api/client.js';
 import BentoCard from '../components/BentoCard.jsx';
 import Avatar from '../components/Avatar.jsx';
@@ -212,6 +213,9 @@ function FundEditor({ label, monthlyRent, mode, values, onChange }) {
 export default function Tenants() {
   const [tenants, setTenants] = useState([]);
   const [vacantUnits, setVacantUnits] = useState([]);
+  const [properties, setProperties] = useState([]);
+  const [nudgeGuide, setNudgeGuide] = useState(false);
+  const guideRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showFundsDetail, setShowFundsDetail] = useState(false);
@@ -236,8 +240,20 @@ export default function Tenants() {
     setVacantUnits(data.units);
   };
 
+  // Used only to explain *why* Add Tenant is blocked (no property yet vs.
+  // property with no units vs. every unit already occupied). Non-fatal if it
+  // fails - the guide just falls back to a generic message.
+  const loadProperties = async () => {
+    try {
+      const { data } = await client.get('/properties');
+      setProperties(data.properties || []);
+    } catch {
+      setProperties([]);
+    }
+  };
+
   useEffect(() => {
-    Promise.all([loadTenants(), loadVacantUnits()]).finally(() => setLoading(false));
+    Promise.all([loadTenants(), loadVacantUnits(), loadProperties()]).finally(() => setLoading(false));
   }, []);
 
   const resetMoveInForm = () => {
@@ -336,35 +352,117 @@ export default function Tenants() {
     fundAmount(form.advanceUseExact, form.advanceAmount, form.advanceMonths, form.monthlyRent) +
     fundAmount(form.depositUseExact, form.depositAmount, form.depositMonths, form.monthlyRent);
 
+  const activeTenants = tenants.filter((t) => t.status === 'active');
+  const monthlyRentRoll = activeTenants.reduce((sum, t) => sum + (t.monthlyRent || 0), 0);
+  const expiringSoonCount = activeTenants.filter((t) => {
+    if (!t.contract?.endDate) return false;
+    const days = Math.ceil((new Date(t.contract.endDate) - new Date()) / 86400000);
+    return days >= 0 && days <= 30;
+  }).length;
+
+  // Why (if at all) moving in a tenant is currently impossible. A tenant
+  // must be placed into a vacant unit, and a unit belongs to a property, so
+  // the blocker is always the earliest missing step in that chain.
+  const totalUnitCount = properties.reduce((sum, pr) => sum + (pr.unitCount || 0), 0);
+  const addTenantBlock =
+    vacantUnits.length > 0
+      ? null
+      : properties.length === 0
+        ? {
+            title: 'Add a property first',
+            body: 'Tenants move into a unit, and units live inside a property. You don\'t have any properties yet. Adding one also asks for at least one unit.',
+            step: 1,
+            cta: 'Add a property',
+          }
+        : totalUnitCount === 0
+          ? {
+              title: 'Add a unit to your property',
+              body: 'Your property doesn\'t have any units yet. Add at least one unit, then you can move a tenant into it.',
+              step: 2,
+              cta: 'Add a unit',
+            }
+          : {
+              title: 'No vacant units available',
+              body: 'Every unit is currently occupied. Add another unit, or move a tenant out to free one up.',
+              step: 2,
+              cta: 'Manage units',
+            };
+
+  const handleAddTenantClick = () => {
+    if (addTenantBlock) {
+      guideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setNudgeGuide(true);
+      setTimeout(() => setNudgeGuide(false), 1600);
+      return;
+    }
+    cancelEditing();
+    setShowForm((s) => !s);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Tenants &amp; Leases</h1>
+      <BentoCard className="relative overflow-hidden">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
+        <div className="relative flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
+              Lease Portfolio &middot; {activeTenants.length} Active
+            </div>
+            <h1 className="mt-1 text-3xl font-bold tracking-tight">Tenants &amp; Leases</h1>
+            <p className="mt-1 text-sm text-ink/50">Active leases, move-ins, and upcoming renewals.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setManageMode((m) => !m)}
+              aria-pressed={manageMode}
+              title="Manage tenants"
+              className={`rounded-lg border p-2 text-sm transition-colors ${
+                manageMode ? 'border-primary bg-primary text-white' : 'border-line text-ink/50 hover:text-ink'
+              }`}
+            >
+              <FontAwesomeIcon icon={faGear} />
+            </button>
+            <button
+              onClick={handleAddTenantClick}
+              aria-disabled={Boolean(addTenantBlock)}
+              title={addTenantBlock ? addTenantBlock.title : undefined}
+              className={`rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark ${
+                addTenantBlock ? 'opacity-40' : ''
+              }`}
+            >
+              + Add Tenant
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setManageMode((m) => !m)}
-            aria-pressed={manageMode}
-            title="Manage tenants"
-            className={`rounded-lg border p-2 text-sm transition-colors ${
-              manageMode ? 'border-ink bg-ink text-white' : 'border-line text-ink/50 hover:text-ink'
-            }`}
-          >
-            <FontAwesomeIcon icon={faGear} />
-          </button>
-          <button
-            onClick={() => {
-              cancelEditing();
-              setShowForm((s) => !s);
-            }}
-            disabled={vacantUnits.length === 0}
-            className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-ink/90 disabled:opacity-40"
-          >
-            + Add Tenant
-          </button>
+      </BentoCard>
+
+      {!loading && tenants.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <BentoCard>
+            <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Active Tenants</p>
+            <p className="mt-1 text-xl font-semibold">{activeTenants.length} <span className="text-sm font-normal text-ink/45">of {tenants.length} total</span></p>
+            <p className="mt-1 text-xs text-ink/45">Across all managed units</p>
+          </BentoCard>
+          <BentoCard>
+            <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Monthly Rent Roll</p>
+            <p className="mt-1 text-xl font-semibold">{peso(monthlyRentRoll)}/mo</p>
+            <p className="mt-1 text-xs text-ink/45">Contracted rent from active leases</p>
+          </BentoCard>
+          <BentoCard>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Leases Expiring Soon</p>
+              {expiringSoonCount > 0 && (
+                <span className="rounded-full bg-status-pendingSoft px-2 py-0.5 text-[10px] font-semibold text-status-pending">
+                  {expiringSoonCount}
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-xl font-semibold">{expiringSoonCount} <span className="text-sm font-normal text-ink/45">within 30 days</span></p>
+            <p className="mt-1 text-xs text-ink/45">Review renewals under each tenant</p>
+          </BentoCard>
         </div>
-      </div>
+      )}
 
       {manageMode && (
         <p className="-mt-3 text-xs text-ink/45">
@@ -372,8 +470,40 @@ export default function Tenants() {
         </p>
       )}
 
-      {vacantUnits.length === 0 && (
-        <p className="text-sm text-ink/50">Add a vacant unit under Properties before moving in a tenant.</p>
+      {!loading && addTenantBlock && (
+        <div
+          ref={guideRef}
+          className={`rounded-xl border bg-status-upcomingSoft p-4 transition-shadow ${
+            nudgeGuide ? 'border-primary ring-2 ring-primary/40' : 'border-line'
+          }`}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface text-status-upcoming">
+                <FontAwesomeIcon icon={faCircleInfo} className="h-3.5 w-3.5" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold">{addTenantBlock.title}</p>
+                <p className="mt-0.5 text-xs text-ink/60">{addTenantBlock.body}</p>
+                <ol className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium">
+                  <li className={addTenantBlock.step === 1 ? 'text-primary' : 'text-status-paid'}>
+                    {addTenantBlock.step === 1 ? '1. Add property' : '\u2713 Property added'}
+                  </li>
+                  <li className="text-ink/30" aria-hidden="true">&rarr;</li>
+                  <li className={addTenantBlock.step === 2 ? 'text-primary' : 'text-ink/45'}>2. Add a vacant unit</li>
+                  <li className="text-ink/30" aria-hidden="true">&rarr;</li>
+                  <li className="text-ink/45">3. Move in a tenant</li>
+                </ol>
+              </div>
+            </div>
+            <Link
+              to="/properties"
+              className="shrink-0 rounded-full bg-primary px-4 py-2 text-center text-xs font-semibold text-white hover:bg-primary-dark"
+            >
+              {addTenantBlock.cta}
+            </Link>
+          </div>
+        </div>
       )}
       {error && <p className="text-sm text-status-overdue">{error}</p>}
 
@@ -564,7 +694,7 @@ export default function Tenants() {
               )}
             </div>
 
-            <button type="submit" className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white">
+            <button type="submit" className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark">
               Complete Move-In
             </button>
           </form>
@@ -762,7 +892,7 @@ export default function Tenants() {
                       Advance/deposit and lease dates are locked in on the contract itself and aren't edited here.
                     </p>
                     <div className="flex gap-2">
-                      <button type="submit" className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white">
+                      <button type="submit" className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark">
                         Save Changes
                       </button>
                       <button type="button" onClick={cancelEditing} className="rounded-lg border border-line px-4 py-2 text-sm font-medium hover:bg-canvas">

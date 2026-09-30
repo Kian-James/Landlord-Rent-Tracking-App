@@ -97,6 +97,23 @@ function emptyUnitForm() {
   };
 }
 
+// "Unit 101" -> "Unit 102", "Room 9" -> "Room 10"; names with no trailing
+// number get " (copy)" so a duplicate is never silently identical.
+function nextUnitName(name) {
+  const trimmed = String(name || '').trim();
+  const match = trimmed.match(/^(.*?)(\d+)(\D*)$/);
+  if (!match) return trimmed ? `${trimmed} (copy)` : '';
+  const [, prefix, digits, suffix] = match;
+  const next = String(Number(digits) + 1).padStart(digits.length, '0');
+  return `${prefix}${next}${suffix}`;
+}
+
+let draftUnitCounter = 0;
+function newDraftUnit(fields = emptyUnitForm()) {
+  draftUnitCounter += 1;
+  return { draftId: draftUnitCounter, ...fields };
+}
+
 function unitToFormState(unit) {
   return {
     name: unit.name || '',
@@ -202,6 +219,10 @@ export default function Properties() {
   const [loading, setLoading] = useState(true);
   const [showPropertyForm, setShowPropertyForm] = useState(false);
   const [propertyForm, setPropertyForm] = useState({ name: '', address: '', description: '' });
+  // A property can't exist without at least one unit, so the create form also
+  // collects one or more units and they are all submitted together.
+  const [draftUnits, setDraftUnits] = useState(() => [newDraftUnit()]);
+  const [creatingProperty, setCreatingProperty] = useState(false);
   const [editingPropertyId, setEditingPropertyId] = useState(null);
   const [editPropertyForm, setEditPropertyForm] = useState({ name: '', address: '', description: '' });
   const [unitFormFor, setUnitFormFor] = useState(null);
@@ -229,16 +250,85 @@ export default function Properties() {
     properties.forEach((p) => loadUnits(p._id));
   }, [properties.length]);
 
+  const updateDraftUnit = (draftId, next) =>
+    setDraftUnits((list) => list.map((u) => (u.draftId === draftId ? { ...next, draftId } : u)));
+
+  const addDraftUnit = () => setDraftUnits((list) => [...list, newDraftUnit()]);
+
+  const duplicateDraftUnit = (draftId) =>
+    setDraftUnits((list) => {
+      const index = list.findIndex((u) => u.draftId === draftId);
+      if (index === -1) return list;
+      const fields = { ...list[index] };
+      delete fields.draftId;
+      const copy = newDraftUnit({ ...fields, name: nextUnitName(fields.name) });
+      return [...list.slice(0, index + 1), copy, ...list.slice(index + 1)];
+    });
+
+  const removeDraftUnit = (draftId) =>
+    setDraftUnits((list) => (list.length > 1 ? list.filter((u) => u.draftId !== draftId) : list));
+
+  const resetPropertyDraft = () => {
+    setPropertyForm({ name: '', address: '', description: '' });
+    setDraftUnits([newDraftUnit()]);
+  };
+
   const handleCreateProperty = async (e) => {
     e.preventDefault();
     setError('');
+    if (draftUnits.some((u) => hasInvalidUtilityDueDay(u))) {
+      setError(UTILITY_DAY_ERROR);
+      return;
+    }
+    const names = draftUnits.map((u) => u.name.trim().toLowerCase());
+    if (new Set(names).size !== names.length) {
+      setError('Each unit needs a different name. Rename the duplicated units before saving.');
+      return;
+    }
+    setCreatingProperty(true);
+
+    let createdId = null;
     try {
-      await client.post('/properties', propertyForm);
-      setPropertyForm({ name: '', address: '', description: '' });
+      const { data } = await client.post('/properties', propertyForm);
+      const created = data?.property || data;
+      createdId = created?._id || created?.id || null;
+
+      // Response shape fallback: find the property we just made by name + address.
+      if (!createdId) {
+        const list = await client.get('/properties');
+        const match = (list.data.properties || []).find(
+          (pr) => pr.name === propertyForm.name && pr.address === propertyForm.address
+        );
+        createdId = match?._id || null;
+      }
+      if (!createdId) throw new Error('missing property id');
+
+      // Sequential (not parallel) so units are created in the order shown.
+      for (const unit of draftUnits) {
+        await client.post('/units', {
+          propertyId: createdId,
+          name: unit.name.trim(),
+          monthlyRent: Number(unit.monthlyRent),
+          utilities: utilitiesPayloadFrom(unit),
+        });
+      }
+
+      resetPropertyDraft();
       setShowPropertyForm(false);
       await loadProperties();
     } catch (err) {
-      setError(err.response?.data?.error?.message || 'Could not add property.');
+      // A unit failed part-way (or the id was unreadable) - undo the whole
+      // thing so nothing half-created is left behind, and keep the form as-is.
+      if (createdId) {
+        try {
+          await client.delete(`/properties/${createdId}`);
+        } catch {
+          await loadProperties();
+        }
+      }
+      setError(err.response?.data?.error?.message || 'Could not add property. Nothing was saved, please try again.');
+    } finally {
+      setCreatingProperty(false);
     }
   };
 
@@ -339,48 +429,157 @@ export default function Properties() {
     }
   };
 
+  const allUnits = Object.values(unitsByProperty).flat();
+  const totalPotentialGross = allUnits.reduce((sum, u) => sum + (u.monthlyRent || 0), 0);
+  const occupiedCount = allUnits.filter((u) => u.status === 'occupied').length;
+  const occupancyPct = allUnits.length > 0 ? Math.round((occupiedCount / allUnits.length) * 100) : 0;
+  const baselinesConfiguredCount = allUnits.filter((u) =>
+    Object.values(u.utilities || {}).some((v) => v?.amount)
+  ).length;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Properties &amp; Units</h1>
+      <BentoCard className="relative overflow-hidden">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
+        <div className="relative flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
+              Asset Overview &middot; Real Estate Portfolio
+            </div>
+            <h1 className="mt-1 text-3xl font-bold tracking-tight">Properties &amp; Units</h1>
+            <p className="mt-1 text-sm text-ink/50">Portfolio management, occupancy health, and unit rent schedules.</p>
+          </div>
+          <button
+            onClick={() => setShowPropertyForm((s) => !s)}
+            className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark"
+          >
+            + Add Property
+          </button>
         </div>
-        <button
-          onClick={() => setShowPropertyForm((s) => !s)}
-          className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-ink/90"
-        >
-          + Add Property
-        </button>
-      </div>
+      </BentoCard>
+
+      {!loading && properties.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <BentoCard>
+            <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Total Potential Gross</p>
+            <p className="mt-1 text-xl font-semibold">{peso(totalPotentialGross)}/mo</p>
+            <p className="mt-1 text-xs text-ink/45">Across {properties.length} propert{properties.length === 1 ? 'y' : 'ies'} &middot; {allUnits.length} total units</p>
+          </BentoCard>
+          <BentoCard>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Realized Occupancy</p>
+              <span className="rounded-full bg-status-paidSoft px-2 py-0.5 text-[10px] font-semibold text-status-paid">{occupancyPct}%</span>
+            </div>
+            <p className="mt-1 text-xl font-semibold">{occupiedCount} / {allUnits.length} <span className="text-sm font-normal text-ink/45">Units Occupied</span></p>
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-line">
+              <div className="h-full rounded-full bg-status-paid" style={{ width: `${occupancyPct}%` }} />
+            </div>
+          </BentoCard>
+          <BentoCard>
+            <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Utility Baselines Configured</p>
+            <p className="mt-1 text-xl font-semibold">{baselinesConfiguredCount} / {allUnits.length} <span className="text-sm font-normal text-ink/45">Units Covered</span></p>
+            <p className="mt-1 text-xs text-ink/45">Electric, Water, Wifi baselines</p>
+          </BentoCard>
+        </div>
+      )}
 
       {error && <p className="text-sm text-status-overdue">{error}</p>}
 
       {showPropertyForm && (
         <BentoCard>
-          <form onSubmit={handleCreateProperty} className="grid gap-3 md:grid-cols-3">
-            <input
-              required
-              placeholder="Property name"
-              value={propertyForm.name}
-              onChange={(e) => setPropertyForm((f) => ({ ...f, name: e.target.value }))}
-              className="rounded-lg border border-line px-3 py-2 text-sm"
-            />
-            <input
-              required
-              placeholder="Address"
-              value={propertyForm.address}
-              onChange={(e) => setPropertyForm((f) => ({ ...f, address: e.target.value }))}
-              className="rounded-lg border border-line px-3 py-2 text-sm"
-            />
+          <form onSubmit={handleCreateProperty} className="space-y-4">
+            <div>
+              <p className="text-sm font-semibold">Property details</p>
+              <div className="mt-2 grid gap-3 md:grid-cols-3">
+                <input
+                  required
+                  placeholder="Property name"
+                  value={propertyForm.name}
+                  onChange={(e) => setPropertyForm((f) => ({ ...f, name: e.target.value }))}
+                  className="rounded-lg border border-line px-3 py-2 text-sm"
+                />
+                <input
+                  required
+                  placeholder="Address"
+                  value={propertyForm.address}
+                  onChange={(e) => setPropertyForm((f) => ({ ...f, address: e.target.value }))}
+                  className="rounded-lg border border-line px-3 py-2 text-sm"
+                />
+                <input
+                  placeholder="Description (optional)"
+                  value={propertyForm.description}
+                  onChange={(e) => setPropertyForm((f) => ({ ...f, description: e.target.value }))}
+                  className="w-full rounded-lg border border-line px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-semibold">
+                  Units <span className="text-status-overdue">*</span>{' '}
+                  <span className="text-xs font-normal text-ink/45">({draftUnits.length})</span>
+                </p>
+                <p className="text-xs text-ink/50">
+                  Every property needs at least one unit. Use Duplicate to copy a unit&apos;s rent and utilities
+                  &mdash; the name counts up automatically (Unit 101 &rarr; Unit 102).
+                </p>
+              </div>
+
+              {draftUnits.map((unit, index) => (
+                <div key={unit.draftId} className="space-y-2 rounded-lg border border-line bg-canvas/50 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-ink/50">Unit {index + 1}</p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => duplicateDraftUnit(unit.draftId)}
+                        className="rounded-full border border-line px-3 py-1 text-xs font-medium text-ink/70 hover:bg-surface"
+                      >
+                        Duplicate
+                      </button>
+                      {draftUnits.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeDraftUnit(unit.draftId)}
+                          className="rounded-full border border-line px-3 py-1 text-xs font-medium text-status-overdue hover:bg-status-overdueSoft"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <UnitFieldsEditor form={unit} onChange={(next) => updateDraftUnit(unit.draftId, next)} />
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={addDraftUnit}
+                className="w-full rounded-lg border border-dashed border-line py-2 text-sm font-medium text-ink/60 hover:bg-canvas"
+              >
+                + Add another unit
+              </button>
+            </div>
+
             <div className="flex gap-2">
-              <input
-                placeholder="Description (optional)"
-                value={propertyForm.description}
-                onChange={(e) => setPropertyForm((f) => ({ ...f, description: e.target.value }))}
-                className="w-full rounded-lg border border-line px-3 py-2 text-sm"
-              />
-              <button type="submit" className="shrink-0 rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white">
-                Save
+              <button
+                type="submit"
+                disabled={creatingProperty}
+                className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark disabled:opacity-60"
+              >
+                {creatingProperty ? 'Saving...' : `Add property & ${draftUnits.length} unit${draftUnits.length === 1 ? '' : 's'}`}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPropertyForm(false);
+                  resetPropertyDraft();
+                }}
+                className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink/60"
+              >
+                Cancel
               </button>
             </div>
           </form>
@@ -406,7 +605,7 @@ export default function Properties() {
           {properties.length === 0 && !showPropertyForm && (
             <BentoCard className="text-center">
               <p className="font-medium">No properties yet</p>
-              <p className="mt-1 text-sm text-ink/50">Add your first property to start tracking rent.</p>
+              <p className="mt-1 text-sm text-ink/50">Add your first property, along with at least one unit, to start tracking rent.</p>
             </BentoCard>
           )}
 
@@ -444,7 +643,7 @@ export default function Properties() {
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex gap-2">
-                    <button type="submit" className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white">
+                    <button type="submit" className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark">
                       Save Changes
                     </button>
                     <button
@@ -520,7 +719,7 @@ export default function Properties() {
                       </div>
                     )}
                     <div className="flex gap-2">
-                      <button type="submit" className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white">
+                      <button type="submit" className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark">
                         Save Changes
                       </button>
                       <button
@@ -592,7 +791,7 @@ export default function Properties() {
               <form onSubmit={(e) => handleCreateUnit(e, property._id)} className="mt-3 space-y-2 rounded-lg border border-line p-3">
                 <UnitFieldsEditor form={unitForm} onChange={setUnitForm} />
                 <div className="flex gap-2">
-                  <button type="submit" className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white">
+                  <button type="submit" className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark">
                     Add Unit
                   </button>
                   <button
