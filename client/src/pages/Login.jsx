@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { faEnvelope, faLock } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import GoogleAuthButton from '../components/GoogleAuthButton.jsx';
+import AuthLayout from '../components/AuthLayout.jsx';
+import AuthField from '../components/AuthField.jsx';
+import AuthAlert from '../components/AuthAlert.jsx';
 import { friendlyAuthError } from '../lib/authError.js';
 
 export default function Login() {
@@ -27,63 +31,63 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
-      <div className="w-full max-w-sm rounded-bento border border-line bg-surface p-8 shadow-bento">
-        <p className="text-lg font-semibold">PropTrack</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Welcome back</h1>
-        <p className="mt-1 text-sm text-ink/60">Log in to see who's paid and what needs attention.</p>
+    <AuthLayout
+      title="Welcome back"
+      subtitle="Log in to see who's paid and what needs attention."
+      footer={
+        <>
+          New to Rentora?{' '}
+          <Link to="/register" className="font-semibold text-success-dark hover:underline">
+            Create an account
+          </Link>
+        </>
+      }
+    >
+      <GoogleAuthButton onError={setError} />
 
-        <div className="mt-6">
-          <GoogleAuthButton onError={setError} />
-        </div>
-
-        <div className="my-5 flex items-center gap-3">
-          <span className="h-px flex-1 bg-line" />
-          <span className="text-xs text-ink/40">or</span>
-          <span className="h-px flex-1 bg-line" />
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="text-sm font-medium">Account email</label>
-            <input
-              id="email"
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm focus:border-brand focus:outline-none"
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="text-sm font-medium">Password</label>
-            <input
-              id="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm focus:border-brand focus:outline-none"
-            />
-          </div>
-
-          {error && <p className="text-sm text-status-overdue">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-full bg-primary py-2.5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-60"
-          >
-            {submitting ? 'Logging in...' : 'Log in'}
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-ink/60">
-          New here? <Link to="/register" className="font-medium text-brand">Create an account</Link>
-        </p>
+      <div className="my-6 flex items-center gap-3">
+        <span className="h-px flex-1 bg-line" />
+        <span className="text-xs font-medium uppercase tracking-wide text-ink/35">or with email</span>
+        <span className="h-px flex-1 bg-line" />
       </div>
-    </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <AuthField
+          id="email"
+          label="Email"
+          icon={faEnvelope}
+          type="email"
+          required
+          autoComplete="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <AuthField
+          id="password"
+          label="Password"
+          icon={faLock}
+          type="password"
+          required
+          autoComplete="current-password"
+          placeholder="Your password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        {error && <AuthAlert>{error}</AuthAlert>}
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-primary text-sm font-semibold text-white shadow-sm transition hover:bg-primary-dark disabled:opacity-60"
+        >
+          {submitting && (
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden="true" />
+          )}
+          {submitting ? 'Logging in...' : 'Log in'}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }

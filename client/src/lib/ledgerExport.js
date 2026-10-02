@@ -96,7 +96,7 @@ function colorStatusColumn(sheet, columnKey) {
 
 export function buildLedgerWorkbook(ExcelJS, { months, rentRecords, utilityRecords }) {
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'PropTrack';
+  wb.creator = 'Rentora';
   wb.created = new Date();
 
   // ---- Summary (one row per month + totals) ----
@@ -234,7 +234,7 @@ export function buildLedgerWorkbook(ExcelJS, { months, rentRecords, utilityRecor
 export function ledgerFileName(from, to) {
   const a = monthKey(from);
   const b = monthKey(to);
-  return a === b ? `PropTrack-ledger-${a}.xlsx` : `PropTrack-ledger-${a}_to_${b}.xlsx`;
+  return a === b ? `Rentora-ledger-${a}.xlsx` : `Rentora-ledger-${a}_to_${b}.xlsx`;
 }
 
 // exceljs is large, so it's only pulled in (as its own chunk) the first time

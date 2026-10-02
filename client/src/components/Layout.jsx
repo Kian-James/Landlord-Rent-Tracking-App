@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { RentoraMark } from './RentoraLogo.jsx';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faTableCellsLarge,
@@ -40,9 +41,7 @@ export default function Layout() {
       {/* Floating left icon rail - fixed, doesn't scroll with the page.
           Hidden below lg, where the existing bottom tab bar takes over. */}
       <aside className="fixed bottom-6 left-6 top-6 z-30 hidden w-[72px] flex-col items-center rounded-bento bg-surface py-6 shadow-bento lg:flex">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-sm font-bold text-white" aria-hidden="true">
-          PT
-        </div>
+        <RentoraMark className="h-9 w-9" />
 
         <nav className="mt-8 flex flex-1 flex-col items-center gap-2">
           {NAV_ITEMS.map((item) => (
