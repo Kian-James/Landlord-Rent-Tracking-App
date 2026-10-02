@@ -1,7 +1,9 @@
 import React, { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGear, faCircleInfo } from '@fortawesome/free-solid-svg-icons';
+import { faGear, faCircleInfo, faHourglassHalf, faUsers, faWallet } from '@fortawesome/free-solid-svg-icons';
+import StatCard from '../components/StatCard.jsx';
+import TenantStatModals from '../components/TenantStatModals.jsx';
 import client from '../api/client.js';
 import BentoCard from '../components/BentoCard.jsx';
 import Avatar from '../components/Avatar.jsx';
@@ -214,6 +216,8 @@ export default function Tenants() {
   const [tenants, setTenants] = useState([]);
   const [vacantUnits, setVacantUnits] = useState([]);
   const [properties, setProperties] = useState([]);
+  // Which summary card's breakdown is open: 'active' | 'rent' | 'expiring'.
+  const [statModal, setStatModal] = useState(null);
   const [nudgeGuide, setNudgeGuide] = useState(false);
   const guideRef = useRef(null);
   const [loading, setLoading] = useState(true);
@@ -439,28 +443,33 @@ export default function Tenants() {
 
       {!loading && tenants.length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <BentoCard>
-            <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Active Tenants</p>
-            <p className="mt-1 text-xl font-semibold">{activeTenants.length} <span className="text-sm font-normal text-ink/45">of {tenants.length} total</span></p>
-            <p className="mt-1 text-xs text-ink/45">Across all managed units</p>
-          </BentoCard>
-          <BentoCard>
-            <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Monthly Rent Roll</p>
-            <p className="mt-1 text-xl font-semibold">{peso(monthlyRentRoll)}/mo</p>
-            <p className="mt-1 text-xs text-ink/45">Contracted rent from active leases</p>
-          </BentoCard>
-          <BentoCard>
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Leases Expiring Soon</p>
-              {expiringSoonCount > 0 && (
-                <span className="rounded-full bg-status-pendingSoft px-2 py-0.5 text-[10px] font-semibold text-status-pending">
-                  {expiringSoonCount}
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-xl font-semibold">{expiringSoonCount} <span className="text-sm font-normal text-ink/45">within 30 days</span></p>
-            <p className="mt-1 text-xs text-ink/45">Review renewals under each tenant</p>
-          </BentoCard>
+          <StatCard
+            icon={faUsers}
+            label="Active Tenants"
+            value={activeTenants.length}
+            suffix={`of ${tenants.length} total`}
+            bar={[{ pct: tenants.length > 0 ? Math.round((activeTenants.length / tenants.length) * 100) : 0, className: 'bg-status-paid' }]}
+            captions={['Across all managed units']}
+            onClick={() => setStatModal('active')}
+          />
+          <StatCard
+            icon={faWallet}
+            label="Monthly Rent Roll"
+            value={peso(monthlyRentRoll)}
+            suffix="/mo"
+            captions={['Contracted rent from active leases']}
+            onClick={() => setStatModal('rent')}
+          />
+          <StatCard
+            icon={faHourglassHalf}
+            tone={expiringSoonCount > 0 ? 'pending' : 'neutral'}
+            label="Leases Expiring Soon"
+            value={expiringSoonCount}
+            suffix="within 30 days"
+            pill={expiringSoonCount > 0 ? { text: `${expiringSoonCount} to review`, tone: 'pending' } : undefined}
+            captions={['Review renewals under each tenant']}
+            onClick={() => setStatModal('expiring')}
+          />
         </div>
       )}
 
@@ -906,6 +915,8 @@ export default function Tenants() {
           })}
         </div>
       )}
+
+      <TenantStatModals kind={statModal} tenants={tenants} onClose={() => setStatModal(null)} />
     </div>
   );
 }

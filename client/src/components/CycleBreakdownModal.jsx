@@ -186,11 +186,11 @@ function RemainingBody({ rent }) {
 // kind: 'target' | 'collected' | 'remaining' (null = closed).
 // `items` is the page's normalized bill list for the viewed month (rent +
 // utilities). The cards only count rent, so the modal splits it the same way.
-export default function CycleBreakdownModal({ kind, items, periodLabel, onClose }) {
+export default function CycleBreakdownModal({ kind, items, periodLabel, onClose, titles = TITLES }) {
   const rent = items.filter((i) => i.billType === 'rent');
   const other = items.filter((i) => i.billType !== 'rent');
   return (
-    <Modal open={!!kind} onClose={onClose} title={kind ? `${TITLES[kind]} \u00b7 ${periodLabel}` : ''} size="lg">
+    <Modal open={!!kind} onClose={onClose} title={kind ? `${titles[kind]} \u00b7 ${periodLabel}` : ''} size="lg">
       {kind && (
         <>
           <div className="max-h-[68vh] overflow-y-auto pr-1">

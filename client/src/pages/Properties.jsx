@@ -3,6 +3,9 @@ import client from '../api/client.js';
 import BentoCard from '../components/BentoCard.jsx';
 import { Skeleton, SkeletonText } from '../components/Skeleton.jsx';
 import { BillIcon } from '../lib/billIcons.jsx';
+import { faBolt, faKey, faWallet } from '@fortawesome/free-solid-svg-icons';
+import StatCard from '../components/StatCard.jsx';
+import PropertyStatModals from '../components/PropertyStatModals.jsx';
 
 function peso(amount) {
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(
@@ -223,6 +226,8 @@ export default function Properties() {
   // collects one or more units and they are all submitted together.
   const [draftUnits, setDraftUnits] = useState(() => [newDraftUnit()]);
   const [creatingProperty, setCreatingProperty] = useState(false);
+  // Which summary card's breakdown is open: 'gross' | 'occupancy' | 'baselines'.
+  const [statModal, setStatModal] = useState(null);
   const [editingPropertyId, setEditingPropertyId] = useState(null);
   const [editPropertyForm, setEditPropertyForm] = useState({ name: '', address: '', description: '' });
   const [unitFormFor, setUnitFormFor] = useState(null);
@@ -461,26 +466,35 @@ export default function Properties() {
 
       {!loading && properties.length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <BentoCard>
-            <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Total Potential Gross</p>
-            <p className="mt-1 text-xl font-semibold">{peso(totalPotentialGross)}/mo</p>
-            <p className="mt-1 text-xs text-ink/45">Across {properties.length} propert{properties.length === 1 ? 'y' : 'ies'} &middot; {allUnits.length} total units</p>
-          </BentoCard>
-          <BentoCard>
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Realized Occupancy</p>
-              <span className="rounded-full bg-status-paidSoft px-2 py-0.5 text-[10px] font-semibold text-status-paid">{occupancyPct}%</span>
-            </div>
-            <p className="mt-1 text-xl font-semibold">{occupiedCount} / {allUnits.length} <span className="text-sm font-normal text-ink/45">Units Occupied</span></p>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-line">
-              <div className="h-full rounded-full bg-status-paid" style={{ width: `${occupancyPct}%` }} />
-            </div>
-          </BentoCard>
-          <BentoCard>
-            <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Utility Baselines Configured</p>
-            <p className="mt-1 text-xl font-semibold">{baselinesConfiguredCount} / {allUnits.length} <span className="text-sm font-normal text-ink/45">Units Covered</span></p>
-            <p className="mt-1 text-xs text-ink/45">Electric, Water, Wifi baselines</p>
-          </BentoCard>
+          <StatCard
+            icon={faWallet}
+            label="Total Potential Gross"
+            value={peso(totalPotentialGross)}
+            suffix="/mo"
+            captions={[`Across ${properties.length} propert${properties.length === 1 ? 'y' : 'ies'} \u00b7 ${allUnits.length} total units`]}
+            onClick={() => setStatModal('gross')}
+          />
+          <StatCard
+            icon={faKey}
+            tone="paid"
+            label="Realized Occupancy"
+            pill={{ text: `${occupancyPct}%` }}
+            value={`${occupiedCount} / ${allUnits.length}`}
+            suffix="Units Occupied"
+            bar={[{ pct: occupancyPct, className: 'bg-status-paid' }]}
+            captions={[`${allUnits.length - occupiedCount} available or under maintenance`]}
+            onClick={() => setStatModal('occupancy')}
+          />
+          <StatCard
+            icon={faBolt}
+            tone="upcoming"
+            label="Utility Baselines Configured"
+            value={`${baselinesConfiguredCount} / ${allUnits.length}`}
+            suffix="Units Covered"
+            bar={[{ pct: allUnits.length > 0 ? Math.round((baselinesConfiguredCount / allUnits.length) * 100) : 0, className: 'bg-status-upcoming' }]}
+            captions={['Electric, Water, Wifi baselines']}
+            onClick={() => setStatModal('baselines')}
+          />
         </div>
       )}
 
@@ -816,6 +830,8 @@ export default function Properties() {
           </div>
         </>
       )}
+
+      <PropertyStatModals kind={statModal} properties={properties} unitsByProperty={unitsByProperty} onClose={() => setStatModal(null)} />
     </div>
   );
 }

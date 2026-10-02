@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGear, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
+import { faGear, faMagnifyingGlass, faShieldHalved, faTriangleExclamation, faWallet } from '@fortawesome/free-solid-svg-icons';
+import StatCard from '../components/StatCard.jsx';
 import client from '../api/client.js';
 import BentoCard from '../components/BentoCard.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
@@ -261,24 +262,6 @@ export default function BillChecklist() {
     return { type: t, amount, pct };
   });
 
-  // Summary cards double as buttons that open a breakdown modal. A div with
-  // role="button" (rather than <button>) keeps the block-level card content valid.
-  const cardButton = (kind, label) => ({
-    role: 'button',
-    tabIndex: 0,
-    'aria-label': label,
-    title: 'View breakdown',
-    onClick: () => setBreakdown(kind),
-    onKeyDown: (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        setBreakdown(kind);
-      }
-    },
-  });
-  const CLICKABLE =
-    'cursor-pointer transition duration-150 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40';
-
   // Jump from a modal to the matching slice of the list below.
   const viewInList = (status) => {
     setStatusFilter(status);
@@ -344,47 +327,46 @@ export default function BillChecklist() {
 
       {!loading && combined.length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <BentoCard className={CLICKABLE} {...cardButton('obligations', 'Total obligations, view breakdown')}>
-            <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Total Obligations</p>
-            <p className="mt-1 text-xl font-semibold">{peso(totalObligations)}</p>
-            <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-line">
-              {typeBreakdown.map((b) => (
-                <div key={b.type} className={`h-full ${TYPE_COLOR[b.type].bar}`} style={{ width: `${b.pct}%` }} />
-              ))}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-ink/45">
-              {typeBreakdown.map((b) => (
-                <span key={b.type} className="inline-flex items-center gap-1">
-                  <span className={`h-1.5 w-1.5 rounded-full ${TYPE_COLOR[b.type].dot}`} />
-                  {BILL_TYPE_META[b.type].label}
-                </span>
-              ))}
-            </div>
-          </BentoCard>
-          <BentoCard className={CLICKABLE} {...cardButton('collected', 'Collected, view breakdown')}>
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Collected</p>
-              <span className="rounded-full bg-status-paidSoft px-2 py-0.5 text-[10px] font-semibold text-status-paid">{collectedPct}%</span>
-            </div>
-            <p className="mt-1 text-xl font-semibold text-status-paid">{peso(collected)}</p>
-            <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-line">
-              <div className="h-full bg-status-paid" style={{ width: `${paidPct}%` }} />
-              <div className="h-full bg-status-pending" style={{ width: `${pendingPct}%` }} />
-              <div className="h-full bg-status-overdue" style={{ width: `${overduePct}%` }} />
-            </div>
-            <p className="mt-1.5 text-[10px] text-ink/40">Paid &middot; Pending &middot; Overdue split</p>
-          </BentoCard>
-          <BentoCard
-            className={`relative overflow-hidden border-l-4 border-l-status-overdue ${CLICKABLE}`}
-            {...cardButton('overdue', 'Overdue bills, view breakdown')}
-          >
-            <div className="pointer-events-none absolute inset-0 bg-status-overdueSoft/25" />
-            <div className="relative">
-              <p className="text-xs font-medium uppercase tracking-wide text-ink/50">Overdue Bills</p>
-              <p className="mt-1 text-xl font-semibold text-status-overdue">{overdueCount} <span className="text-sm font-normal text-ink/45">of {combined.length} total</span></p>
-              <p className="mt-1 text-xs text-ink/45">{peso(overdueAmount)} past due</p>
-            </div>
-          </BentoCard>
+          <StatCard
+            icon={faWallet}
+            label="Total Obligations"
+            value={peso(totalObligations)}
+            bar={typeBreakdown.map((b) => ({ pct: b.pct, className: TYPE_COLOR[b.type].bar }))}
+            captions={[
+              <span key="legend" className="flex flex-wrap gap-x-3 gap-y-1">
+                {typeBreakdown.map((b) => (
+                  <span key={b.type} className="inline-flex items-center gap-1">
+                    <span className={`h-1.5 w-1.5 rounded-full ${TYPE_COLOR[b.type].dot}`} />
+                    {BILL_TYPE_META[b.type].label}
+                  </span>
+                ))}
+              </span>,
+            ]}
+            onClick={() => setBreakdown('obligations')}
+          />
+          <StatCard
+            icon={faShieldHalved}
+            tone="paid"
+            label="Collected"
+            pill={{ text: `${collectedPct}%` }}
+            value={peso(collected)}
+            bar={[
+              { pct: paidPct, className: 'bg-status-paid' },
+              { pct: pendingPct, className: 'bg-status-pending' },
+              { pct: overduePct, className: 'bg-status-overdue' },
+            ]}
+            captions={['Paid \u00b7 Pending \u00b7 Overdue split']}
+            onClick={() => setBreakdown('collected')}
+          />
+          <StatCard
+            icon={faTriangleExclamation}
+            tone="overdue"
+            label="Overdue Bills"
+            value={overdueCount}
+            suffix={`of ${combined.length} total`}
+            captions={[`${peso(overdueAmount)} past due`]}
+            onClick={() => setBreakdown('overdue')}
+          />
         </div>
       )}
 

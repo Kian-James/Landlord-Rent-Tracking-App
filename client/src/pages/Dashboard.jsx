@@ -8,6 +8,9 @@ import Avatar from '../components/Avatar.jsx';
 import FilterDropdown from '../components/FilterDropdown.jsx';
 import NotificationBell from '../components/NotificationBell.jsx';
 import MonthPicker from '../components/MonthPicker.jsx';
+import StatCard from '../components/StatCard.jsx';
+import CycleBreakdownModal from '../components/CycleBreakdownModal.jsx';
+import ReviewStatModal from '../components/ReviewStatModal.jsx';
 import { Skeleton, SkeletonText, SkeletonRow } from '../components/Skeleton.jsx';
 import { buildMonthGrid, periodKeyOf } from '../lib/calendarGrid.js';
 import { getCached, setCached, cacheKey, invalidate } from '../lib/apiCache.js';
@@ -144,6 +147,8 @@ export default function Dashboard() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [checklistFilter, setChecklistFilter] = useState('all');
+  // Which stat card's breakdown is open: 'target' | 'collected' | 'remaining' | 'review'.
+  const [statModal, setStatModal] = useState(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
@@ -375,59 +380,61 @@ export default function Dashboard() {
           reference's 3) so no existing metric (Awaiting Review) gets
           dropped - all four still come straight from `totals`. */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <BentoCard>
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-canvas text-ink/60">
-              <FontAwesomeIcon icon={faWallet} className="h-3.5 w-3.5" />
-            </span>
-            <p className="text-sm font-medium text-ink/70">Expected Rent</p>
-          </div>
-          <p className="metric mt-3 text-metric">{peso(totals.expectedRent)}</p>
-          <p className="mt-1 text-xs text-ink/45">{totals.tenants} tenant(s) in portfolio</p>
-        </BentoCard>
-
-        <BentoCard>
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-status-paidSoft text-status-paid">
-              <FontAwesomeIcon icon={faShieldHalved} className="h-3.5 w-3.5" />
-            </span>
-            <p className="text-sm font-medium text-ink/70">Collected to Date</p>
-            <span className="ml-auto rounded-full bg-status-paidSoft px-2 py-0.5 text-[10px] font-semibold text-status-paid">
-              {collectedPct}%
-            </span>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <p className="metric text-metric text-status-paid">{peso(totals.collected)}</p>
-          </div>
-          <div className="relative mt-2 h-1.5 w-full overflow-hidden rounded-full bg-line">
-            <div className="h-full rounded-full bg-status-paid transition-all" style={{ width: `${collectedPct}%` }} />
-          </div>
-        </BentoCard>
-
-        <BentoCard>
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-status-overdueSoft text-status-overdue">
-              <FontAwesomeIcon icon={faTriangleExclamation} className="h-3.5 w-3.5" />
-            </span>
-            <p className="text-sm font-medium text-ink/70">Overdue Arrears</p>
-          </div>
-          <p className="metric mt-3 text-metric text-status-overdue">{peso(totals.outstanding)}</p>
-          <p className="mt-1 text-xs text-ink/45">{totals.overdue} Overdue &middot; {totals.pending} Pending due soon</p>
-        </BentoCard>
-
-        <BentoCard>
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-status-verifySoft text-status-verify">
-              <FontAwesomeIcon icon={faFileLines} className="h-3.5 w-3.5" />
-            </span>
-            <p className="text-sm font-medium text-ink/70">Awaiting Review</p>
-          </div>
-          <p className="metric mt-3 text-metric text-status-verify">{totals.verification ?? 0}</p>
-          <p className="mt-1 text-xs text-ink/45">
-            {totals.paid} Paid &middot; {totals.pending} Pending &middot; {totals.overdue} Overdue
-          </p>
-        </BentoCard>
+        <StatCard
+          icon={faWallet}
+          label="Expected Rent"
+          value={peso(totals.expectedRent)}
+          captions={[`${totals.tenants} tenant(s) in portfolio`]}
+          onClick={() => setStatModal('target')}
+        />
+        <StatCard
+          icon={faShieldHalved}
+          tone="paid"
+          label="Collected to Date"
+          pill={{ text: `${collectedPct}%` }}
+          value={peso(totals.collected)}
+          bar={[{ pct: collectedPct, className: 'bg-status-paid' }]}
+          onClick={() => setStatModal('collected')}
+        />
+        <StatCard
+          icon={faTriangleExclamation}
+          tone="overdue"
+          label="Overdue Arrears"
+          value={peso(totals.outstanding)}
+          captions={[`${totals.overdue} Overdue \u00b7 ${totals.pending} Pending due soon`]}
+          onClick={() => setStatModal('remaining')}
+        />
+        <StatCard
+          icon={faFileLines}
+          tone="verify"
+          label="Awaiting Review"
+          value={totals.verification ?? 0}
+          captions={[`${totals.paid} Paid \u00b7 ${totals.pending} Pending \u00b7 ${totals.overdue} Overdue`]}
+          onClick={() => setStatModal('review')}
+        />
       </div>
+
+      <CycleBreakdownModal
+        kind={statModal === 'review' ? null : statModal}
+        titles={{ target: 'Expected rent', collected: 'Collected to date', remaining: 'Overdue arrears' }}
+        items={checklist.map((r) => ({
+          id: r._id,
+          billType: 'rent',
+          tenantName: r.tenant?.fullName,
+          unitName: r.unit?.name,
+          amount: r.amountDue,
+          dueDate: r.dueDate,
+          status: r.status,
+        }))}
+        periodLabel={cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+        onClose={() => setStatModal(null)}
+      />
+      <ReviewStatModal
+        open={statModal === 'review'}
+        payments={needsAttention.verification}
+        totals={totals}
+        onClose={() => setStatModal(null)}
+      />
 
       {/* Analytics section - bar chart (rent due by weekday) + cost/status
           breakdown doughnut, replacing the old occupancy/gauge row. Both

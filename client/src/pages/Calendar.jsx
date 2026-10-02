@@ -9,6 +9,7 @@ import ExportRangeModal from '../components/ExportRangeModal.jsx';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileExcel, faShieldHalved, faTriangleExclamation, faWallet } from '@fortawesome/free-solid-svg-icons';
 import CycleBreakdownModal from '../components/CycleBreakdownModal.jsx';
+import StatCard from '../components/StatCard.jsx';
 import { fetchLedgerRange, downloadLedgerWorkbook } from '../lib/ledgerExport.js';
 import { buildMonthGrid, periodKeyOf } from '../lib/calendarGrid.js';
 import { BILL_TYPE_META, BillIcon } from '../lib/billIcons.jsx';
@@ -232,24 +233,6 @@ export default function Calendar() {
   const utilitiesDueTotal = utilityBills.reduce((sum, b) => sum + (b.amountDue || 0), 0);
   const periodLabel = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-  // Summary cards double as buttons that open a breakdown modal (same pattern
-  // as the Bill Checklist cards).
-  const cardButton = (kind, label) => ({
-    role: 'button',
-    tabIndex: 0,
-    'aria-label': label,
-    title: 'View breakdown',
-    onClick: () => setBreakdown(kind),
-    onKeyDown: (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        setBreakdown(kind);
-      }
-    },
-  });
-  const CLICKABLE =
-    'cursor-pointer transition duration-150 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40';
-
   // Fetches every month in the chosen range, then builds and downloads the
   // workbook. Errors bubble up to the export dialog, which shows them inline.
   async function exportLedgerExcel(from, to) {
@@ -330,63 +313,41 @@ export default function Calendar() {
         onExport={exportLedgerExcel}
       />
 
-      {/* Cycle summary strip - icon chip + label, value, then a bar/caption.
-          Each card opens a breakdown modal. */}
+      {/* Cycle summary strip - shared StatCard style; each card opens a breakdown. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <BentoCard className={CLICKABLE} {...cardButton('target', 'Cycle target, view breakdown')}>
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-canvas text-ink/60">
-              <FontAwesomeIcon icon={faWallet} className="h-3.5 w-3.5" />
-            </span>
-            <p className="text-sm font-medium text-ink/70">Cycle Target</p>
-          </div>
-          <p className="metric mt-3 text-metric">{peso(totals.expected)}</p>
-          <p className="mt-1 text-xs text-ink/45">{records.length} rent bill(s) scheduled this cycle</p>
-          {utilitiesDueTotal > 0 && (
-            <p className="mt-0.5 text-xs text-ink/35">+ {peso(utilitiesDueTotal)} utilities also due</p>
-          )}
-        </BentoCard>
-
-        <BentoCard className={CLICKABLE} {...cardButton('collected', 'Collected to date, view breakdown')}>
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-status-paidSoft text-status-paid">
-              <FontAwesomeIcon icon={faShieldHalved} className="h-3.5 w-3.5" />
-            </span>
-            <p className="text-sm font-medium text-ink/70">Collected to Date</p>
-            <span className="ml-auto rounded-full bg-status-paidSoft px-2 py-0.5 text-[10px] font-semibold text-status-paid">
-              {collectedPct}%
-            </span>
-          </div>
-          <p className="metric mt-3 text-metric text-status-paid">{peso(totals.paid)}</p>
-          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-line">
-            <div className="h-full rounded-full bg-status-paid transition-all" style={{ width: `${collectedPct}%` }} />
-          </div>
-          <p className="mt-1.5 text-xs text-ink/45">
-            {rentPaidCount} of {records.length} rent bill(s) paid
-          </p>
-        </BentoCard>
-
-        <BentoCard className={CLICKABLE} {...cardButton('remaining', 'Remaining arrears, view breakdown')}>
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-status-overdueSoft text-status-overdue">
-              <FontAwesomeIcon icon={faTriangleExclamation} className="h-3.5 w-3.5" />
-            </span>
-            <p className="text-sm font-medium text-ink/70">Remaining &middot; Arrears</p>
-            {overdueTenantCount > 0 && (
-              <span className="ml-auto rounded-full bg-status-overdueSoft px-2 py-0.5 text-[10px] font-semibold text-status-overdue">
-                {overdueTenantCount} Critical
-              </span>
-            )}
-          </div>
-          <p className="metric mt-3 text-metric text-status-overdue">{peso(totals.outstanding)}</p>
-          <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-line">
-            <div className="h-full bg-status-overdue transition-all" style={{ width: `${overduePct}%` }} />
-            <div className="h-full bg-status-upcoming transition-all" style={{ width: `${totals.outstanding > 0 ? 100 - overduePct : 0}%` }} />
-          </div>
-          <p className="mt-1.5 text-xs text-ink/45">
-            {peso(overdueAmount)} overdue &middot; {peso(notLateAmount)} not late yet
-          </p>
-        </BentoCard>
+        <StatCard
+          icon={faWallet}
+          label="Cycle Target"
+          value={peso(totals.expected)}
+          captions={[
+            `${records.length} rent bill(s) scheduled this cycle`,
+            utilitiesDueTotal > 0 ? `+ ${peso(utilitiesDueTotal)} utilities also due` : null,
+          ].filter(Boolean)}
+          onClick={() => setBreakdown('target')}
+        />
+        <StatCard
+          icon={faShieldHalved}
+          tone="paid"
+          label="Collected to Date"
+          pill={{ text: `${collectedPct}%` }}
+          value={peso(totals.paid)}
+          bar={[{ pct: collectedPct, className: 'bg-status-paid' }]}
+          captions={[`${rentPaidCount} of ${records.length} rent bill(s) paid`]}
+          onClick={() => setBreakdown('collected')}
+        />
+        <StatCard
+          icon={faTriangleExclamation}
+          tone="overdue"
+          label="Remaining · Arrears"
+          pill={overdueTenantCount > 0 ? { text: `${overdueTenantCount} Critical` } : undefined}
+          value={peso(totals.outstanding)}
+          bar={[
+            { pct: overduePct, className: 'bg-status-overdue' },
+            { pct: totals.outstanding > 0 ? 100 - overduePct : 0, className: 'bg-status-upcoming' },
+          ]}
+          captions={[`${peso(overdueAmount)} overdue \u00b7 ${peso(notLateAmount)} not late yet`]}
+          onClick={() => setBreakdown('remaining')}
+        />
       </div>
 
       <CycleBreakdownModal
