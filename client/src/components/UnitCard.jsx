@@ -9,6 +9,7 @@ import { peso } from '../lib/breakdown.js';
 // make a unit's state readable at a glance (Occupied / Vacant / Maintenance /
 // Reserved), the rent is the headline number, utilities are colour-coded
 // chips (same colours as the Bill Checklist), and the tenant gets its own strip.
+// The Edit unit button only appears when the page is in Manage mode.
 
 const STATUS = {
   occupied: {
@@ -78,7 +79,7 @@ function TenantStrip({ unit }) {
   );
 }
 
-export default function UnitCard({ unit, onEdit }) {
+export default function UnitCard({ unit, onEdit, manage = false }) {
   const s = STATUS[unit.status] || {
     label: capitalize(unit.status) || 'Unknown',
     accent: 'border-t-line',
@@ -126,14 +127,16 @@ export default function UnitCard({ unit, onEdit }) {
 
       <div className="mt-auto space-y-3 pt-4">
         <TenantStrip unit={unit} />
-        <button
-          type="button"
-          onClick={onEdit}
-          className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink/60 transition hover:bg-canvas hover:text-ink"
-        >
-          <FontAwesomeIcon icon={faPen} className="h-2.5 w-2.5" />
-          Edit unit
-        </button>
+        {manage && (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink/60 transition hover:bg-canvas hover:text-ink"
+          >
+            <FontAwesomeIcon icon={faPen} className="h-2.5 w-2.5" />
+            Edit unit
+          </button>
+        )}
       </div>
     </div>
   );

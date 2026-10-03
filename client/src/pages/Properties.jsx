@@ -4,7 +4,7 @@ import BentoCard from '../components/BentoCard.jsx';
 import { Skeleton, SkeletonText } from '../components/Skeleton.jsx';
 import { BillIcon } from '../lib/billIcons.jsx';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBolt, faBuilding, faKey, faPlus, faWallet } from '@fortawesome/free-solid-svg-icons';
+import { faBolt, faBuilding, faGear, faKey, faMagnifyingGlass, faPlus, faWallet } from '@fortawesome/free-solid-svg-icons';
 import UnitCard from '../components/UnitCard.jsx';
 import StatCard from '../components/StatCard.jsx';
 import PropertyStatModals from '../components/PropertyStatModals.jsx';
@@ -224,6 +224,10 @@ export default function Properties() {
   const [creatingProperty, setCreatingProperty] = useState(false);
   // Which summary card's breakdown is open: 'gross' | 'occupancy' | 'baselines'.
   const [statModal, setStatModal] = useState(null);
+  // Manage mode reveals the edit / add-unit actions; the page is a clean
+  // read-only overview otherwise (same pattern as the Tenants page).
+  const [manageMode, setManageMode] = useState(false);
+  const [search, setSearch] = useState('');
   const [editingPropertyId, setEditingPropertyId] = useState(null);
   const [editPropertyForm, setEditPropertyForm] = useState({ name: '', address: '', description: '' });
   const [unitFormFor, setUnitFormFor] = useState(null);
@@ -438,11 +442,27 @@ export default function Properties() {
     Object.values(u.utilities || {}).some((v) => v?.amount)
   ).length;
 
+  // Search: a property is listed if its own name/address/description matches
+  // (then all its units show), or if some of its units match by unit name or
+  // current tenant (then only those units show).
+  const searchTerm = search.trim().toLowerCase();
+  const hit = (...values) => values.some((v) => String(v || '').toLowerCase().includes(searchTerm));
+  const visibleProperties = properties
+    .map((property) => {
+      const units = unitsByProperty[property._id] || [];
+      if (!searchTerm || hit(property.name, property.address, property.description)) {
+        return { property, units, totalUnits: units.length };
+      }
+      const matching = units.filter((u) => hit(u.name, u.currentTenant?.fullName));
+      return matching.length > 0 ? { property, units: matching, totalUnits: units.length } : null;
+    })
+    .filter(Boolean);
+
   return (
     <div className="space-y-6">
       <BentoCard className="relative overflow-hidden">
         <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
-        <div className="relative flex items-center justify-between">
+        <div className="relative">
           <div>
             <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
@@ -451,12 +471,6 @@ export default function Properties() {
             <h1 className="mt-1 text-3xl font-bold tracking-tight">Properties &amp; Units</h1>
             <p className="mt-1 text-sm text-ink/50">Portfolio management, occupancy health, and unit rent schedules.</p>
           </div>
-          <button
-            onClick={() => setShowPropertyForm((s) => !s)}
-            className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark"
-          >
-            + Add Property
-          </button>
         </div>
       </BentoCard>
 
@@ -492,6 +506,47 @@ export default function Properties() {
             onClick={() => setStatModal('baselines')}
           />
         </div>
+      )}
+
+      {/* Toolbar (same one-line treatment as Tenants and the Bill Checklist):
+          search, Add Property, and Manage mode. */}
+      <BentoCard className="p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-[200px] flex-1">
+            <FontAwesomeIcon icon={faMagnifyingGlass} className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink/35" />
+            <input
+              placeholder="Search property, unit or tenant..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-11 w-full rounded-full bg-canvas pl-10 pr-4 text-sm outline-none placeholder:text-ink/35 focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+
+          <button
+            onClick={() => setShowPropertyForm((s) => !s)}
+            className="h-11 shrink-0 rounded-full bg-primary px-5 text-sm font-semibold text-white hover:bg-primary-dark"
+          >
+            + Add Property
+          </button>
+
+          <button
+            onClick={() => setManageMode((m) => !m)}
+            aria-pressed={manageMode}
+            aria-label="Manage properties and units"
+            title="Manage properties and units"
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors ${
+              manageMode ? 'bg-primary text-white' : 'bg-canvas text-ink/60 hover:bg-line'
+            }`}
+          >
+            <FontAwesomeIcon icon={faGear} />
+          </button>
+        </div>
+      </BentoCard>
+
+      {manageMode && (
+        <p className="-mt-3 text-xs text-ink/45">
+          Manage mode is on — properties and units below now show Edit and Add unit actions.
+        </p>
       )}
 
       {error && <p className="text-sm text-status-overdue">{error}</p>}
@@ -619,8 +674,21 @@ export default function Properties() {
             </BentoCard>
           )}
 
+          {properties.length > 0 && visibleProperties.length === 0 && (
+            <BentoCard className="text-center">
+              <p className="font-medium">No properties or units match your search</p>
+              <p className="mt-1 text-sm text-ink/50">Try a property name, address, unit name or tenant name.</p>
+              <button
+                onClick={() => setSearch('')}
+                className="mt-3 rounded-full border border-line px-4 py-1.5 text-xs font-medium hover:bg-canvas"
+              >
+                Clear search
+              </button>
+            </BentoCard>
+          )}
+
           <div className="space-y-4">
-            {properties.map((property) => (
+            {visibleProperties.map(({ property, units, totalUnits }) => (
           <BentoCard key={property._id}>
             {editingPropertyId === property._id ? (
               <form onSubmit={(e) => handleUpdateProperty(e, property._id)} className="space-y-2">
@@ -704,18 +772,20 @@ export default function Properties() {
                       />
                     </span>
                   </div>
-                  <button
-                    onClick={() => startEditProperty(property)}
-                    className="rounded-full border border-line px-3 py-1 text-xs font-medium text-ink/60 hover:bg-canvas"
-                  >
-                    Edit
-                  </button>
+                  {manageMode && (
+                    <button
+                      onClick={() => startEditProperty(property)}
+                      className="rounded-full border border-line px-3 py-1 text-xs font-medium text-ink/60 hover:bg-canvas"
+                    >
+                      Edit
+                    </button>
+                  )}
                 </div>
               </div>
             )}
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {(unitsByProperty[property._id] || []).map((unit) =>
+              {units.map((unit) =>
                 editingUnitId === unit._id ? (
                   <form
                     key={unit._id}
@@ -756,12 +826,18 @@ export default function Properties() {
                     </div>
                   </form>
                 ) : (
-                  <UnitCard key={unit._id} unit={unit} onEdit={() => startEditUnit(unit)} />
+                  <UnitCard key={unit._id} unit={unit} manage={manageMode} onEdit={() => startEditUnit(unit)} />
                 )
               )}
             </div>
 
-            {unitFormFor !== property._id && (
+            {searchTerm && units.length < totalUnits && (
+              <p className="mt-3 text-xs text-ink/45">
+                Showing {units.length} of {totalUnits} units matching &ldquo;{search.trim()}&rdquo;.
+              </p>
+            )}
+
+            {manageMode && unitFormFor !== property._id && (
               <button
                 type="button"
                 onClick={() => setUnitFormFor(property._id)}
