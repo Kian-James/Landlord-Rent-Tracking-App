@@ -157,7 +157,7 @@ function ExpiringBody({ tenants }) {
       <p className="text-3xl font-bold tracking-tight">
         {soon.length} <span className="text-lg font-normal text-ink/45">within 30 days</span>
       </p>
-      <p className="mt-0.5 text-sm text-ink/50">Open a tenant's lease to review or renew it.</p>
+      <p className="mt-0.5 text-sm text-ink/50">To renew: turn on Manage mode, then click Renew Lease on the tenant.</p>
 
       {ended.length > 0 && (
         <>

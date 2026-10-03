@@ -3,7 +3,9 @@ import client from '../api/client.js';
 import BentoCard from '../components/BentoCard.jsx';
 import { Skeleton, SkeletonText } from '../components/Skeleton.jsx';
 import { BillIcon } from '../lib/billIcons.jsx';
-import { faBolt, faKey, faWallet } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faBolt, faBuilding, faKey, faPlus, faWallet } from '@fortawesome/free-solid-svg-icons';
+import UnitCard from '../components/UnitCard.jsx';
 import StatCard from '../components/StatCard.jsx';
 import PropertyStatModals from '../components/PropertyStatModals.jsx';
 
@@ -11,12 +13,6 @@ function peso(amount) {
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(
     amount || 0
   );
-}
-
-function ordinalDay(day) {
-  if (!day) return null;
-  const suffix = ['th', 'st', 'nd', 'rd'][(day % 10 > 3 || Math.floor(day % 100 / 10) === 1) ? 0 : day % 10];
-  return `${day}${suffix}`;
 }
 
 function cleanNumber(raw, { decimals = 0, max } = {}) {
@@ -684,16 +680,30 @@ export default function Properties() {
                 )}
               </form>
             ) : (
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-base font-semibold">{property.name}</p>
-                  <p className="text-sm text-ink/50">{property.address}</p>
-                  {property.description && <p className="mt-1 text-sm text-ink/60">{property.description}</p>}
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-canvas text-ink/60">
+                    <FontAwesomeIcon icon={faBuilding} className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-base font-semibold">{property.name}</p>
+                    <p className="text-sm text-ink/50">{property.address}</p>
+                    {property.description && <p className="mt-1 text-sm text-ink/60">{property.description}</p>}
+                  </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  <p className="text-xs text-ink/50">
-                    {property.occupiedCount}/{property.unitCount} occupied
-                  </p>
+                  <div className="flex items-center gap-2.5 rounded-full bg-canvas px-3.5 py-1.5">
+                    <span className="text-xs font-semibold">
+                      {property.occupiedCount}/{property.unitCount}
+                    </span>
+                    <span className="text-xs text-ink/50">Occupied</span>
+                    <span className="h-1.5 w-14 overflow-hidden rounded-full bg-line">
+                      <span
+                        className="block h-full rounded-full bg-status-paid"
+                        style={{ width: `${property.unitCount > 0 ? Math.round((property.occupiedCount / property.unitCount) * 100) : 0}%` }}
+                      />
+                    </span>
+                  </div>
                   <button
                     onClick={() => startEditProperty(property)}
                     className="rounded-full border border-line px-3 py-1 text-xs font-medium text-ink/60 hover:bg-canvas"
@@ -704,7 +714,7 @@ export default function Properties() {
               </div>
             )}
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {(unitsByProperty[property._id] || []).map((unit) =>
                 editingUnitId === unit._id ? (
                   <form
@@ -746,62 +756,23 @@ export default function Properties() {
                     </div>
                   </form>
                 ) : (
-                  <div key={unit._id} className="rounded-lg border border-line p-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium">{unit.name}</p>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                          unit.status === 'occupied'
-                            ? 'bg-status-paidSoft text-status-paid'
-                            : unit.status === 'maintenance'
-                            ? 'bg-status-pendingSoft text-status-pending'
-                            : 'bg-line text-ink/60'
-                        }`}
-                      >
-                        {unit.status}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-ink/50">{peso(unit.monthlyRent)}/mo rent</p>
-                    {(unit.utilities?.electricity?.amount > 0 || unit.utilities?.electricity?.dueDay ||
-                      unit.utilities?.water?.amount > 0 || unit.utilities?.water?.dueDay ||
-                      unit.utilities?.wifi?.amount > 0 || unit.utilities?.wifi?.dueDay) && (
-                      <div className="mt-1.5 space-y-0.5 text-[11px] text-ink/45">
-                        {(unit.utilities.electricity?.amount > 0 || unit.utilities.electricity?.dueDay) && (
-                          <p>
-                            <BillIcon type="electricity" className="mr-1" />
-                            {unit.utilities.electricity.amount > 0 ? peso(unit.utilities.electricity.amount) : 'Amount not set'}
-                            {unit.utilities.electricity.dueDay && ` · due ${ordinalDay(unit.utilities.electricity.dueDay)}`}
-                          </p>
-                        )}
-                        {(unit.utilities.water?.amount > 0 || unit.utilities.water?.dueDay) && (
-                          <p>
-                            <BillIcon type="water" className="mr-1" />
-                            {unit.utilities.water.amount > 0 ? peso(unit.utilities.water.amount) : 'Amount not set'}
-                            {unit.utilities.water.dueDay && ` · due ${ordinalDay(unit.utilities.water.dueDay)}`}
-                          </p>
-                        )}
-                        {(unit.utilities.wifi?.amount > 0 || unit.utilities.wifi?.dueDay) && (
-                          <p>
-                            <BillIcon type="wifi" className="mr-1" />
-                            {unit.utilities.wifi.amount > 0 ? peso(unit.utilities.wifi.amount) : 'Amount not set'}
-                            {unit.utilities.wifi.dueDay && ` · due ${ordinalDay(unit.utilities.wifi.dueDay)}`}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    {unit.currentTenant && <p className="mt-1 text-xs text-ink/60">{unit.currentTenant.fullName}</p>}
-                    <button
-                      onClick={() => startEditUnit(unit)}
-                      className="mt-2 text-xs font-medium text-ink/50 hover:text-ink"
-                    >
-                      Edit unit
-                    </button>
-                  </div>
+                  <UnitCard key={unit._id} unit={unit} onEdit={() => startEditUnit(unit)} />
                 )
               )}
             </div>
 
-            {unitFormFor === property._id ? (
+            {unitFormFor !== property._id && (
+              <button
+                type="button"
+                onClick={() => setUnitFormFor(property._id)}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-card border-2 border-dashed border-line py-3 text-sm font-medium text-ink/50 transition hover:border-primary/30 hover:bg-canvas hover:text-ink"
+              >
+                <FontAwesomeIcon icon={faPlus} className="h-3 w-3" />
+                Add unit
+              </button>
+            )}
+
+            {unitFormFor === property._id && (
               <form onSubmit={(e) => handleCreateUnit(e, property._id)} className="mt-3 space-y-2 rounded-lg border border-line p-3">
                 <UnitFieldsEditor form={unitForm} onChange={setUnitForm} />
                 <div className="flex gap-2">
@@ -817,13 +788,6 @@ export default function Properties() {
                   </button>
                 </div>
               </form>
-            ) : (
-              <button
-                onClick={() => setUnitFormFor(property._id)}
-                className="mt-3 text-sm font-medium text-brand"
-              >
-                + Add unit
-              </button>
             )}
           </BentoCard>
         ))}

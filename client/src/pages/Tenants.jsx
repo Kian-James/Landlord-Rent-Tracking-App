@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGear, faCircleInfo, faHourglassHalf, faUsers, faWallet } from '@fortawesome/free-solid-svg-icons';
+import { faGear, faCircleInfo, faHourglassHalf, faMagnifyingGlass, faUsers, faWallet } from '@fortawesome/free-solid-svg-icons';
 import StatCard from '../components/StatCard.jsx';
 import TenantStatModals from '../components/TenantStatModals.jsx';
 import client from '../api/client.js';
@@ -212,6 +212,285 @@ function FundEditor({ label, monthlyRent, mode, values, onChange }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Lease renewal (shown inside a tenant's Edit view)
+// ---------------------------------------------------------------------------
+
+function toDateInput(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// "2026-04-01" + 12 months -> "2027-04-01". Month-end safe: Jan 31 + 1 month
+// lands on Feb 28/29 instead of spilling into March.
+function addMonthsToInput(dateStr, months) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const target = new Date(y, m - 1 + months, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(d, lastDay));
+  return toDateInput(target);
+}
+
+function monthsBetweenInputs(a, b) {
+  const start = new Date(`${a}T00:00:00`);
+  const end = new Date(`${b}T00:00:00`);
+  return Math.max(1, Math.round((end - start) / (30.4375 * 86400000)));
+}
+
+const fmtDate = (value) => new Date(`${value}T00:00:00`).toLocaleDateString();
+
+function RenewLeaseForm({ tenant, onCancel, onRenewed }) {
+  const contract = tenant.contract;
+  const currentRent = Number(contract.monthlyRent ?? tenant.monthlyRent) || 0;
+
+  // Defaults: the new term picks up where the current one ends, for the same
+  // length and at the same rent. The existing deposit carries over unless changed.
+  const startDefault = toDateInput(contract.endDate);
+  const durationDefault = Number(contract.durationMonths) || 12;
+  const [form, setForm] = useState({
+    startDate: startDefault,
+    durationMonths: String(durationDefault),
+    endDate: addMonthsToInput(startDefault, durationDefault),
+    monthlyRent: String(currentRent),
+    advanceMonths: '0',
+    advanceMethod: '',
+    advanceReferenceNumber: '',
+    keepDeposit: true,
+    depositMonths: String(contract.deposit?.months ?? 1),
+    depositMethod: '',
+    depositReferenceNumber: '',
+    notes: '',
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+
+  // Start + duration drive the end date; editing the end date back-fills the duration.
+  const handleStart = (startDate) => {
+    const n = Number(form.durationMonths);
+    set({ startDate, endDate: startDate && n >= 1 ? addMonthsToInput(startDate, n) : form.endDate });
+  };
+  const handleDuration = (durationMonths) => {
+    const n = Number(durationMonths);
+    set({ durationMonths, endDate: form.startDate && n >= 1 ? addMonthsToInput(form.startDate, n) : form.endDate });
+  };
+  const handleEnd = (endDate) =>
+    set({
+      endDate,
+      durationMonths: form.startDate && endDate ? String(monthsBetweenInputs(form.startDate, endDate)) : form.durationMonths,
+    });
+
+  const newRent = Number(form.monthlyRent) || 0;
+  const rentDelta = newRent - currentRent;
+  const advanceMonths = Number(form.advanceMonths) || 0;
+  const advanceAmount = advanceMonths * newRent;
+  const depositMonths = Number(form.depositMonths) || 0;
+  const currentDeposit = Number(contract.depositAmount) || 0;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!form.startDate || !form.endDate) return setError('Choose a start and end date for the new term.');
+    if (form.endDate <= form.startDate) return setError('The new end date must be after the start date.');
+    if (form.startDate < toDateInput(contract.startDate)) {
+      return setError("The renewal can't start before the current lease did.");
+    }
+    if (!(Number(form.durationMonths) >= 1)) return setError('Duration must be at least 1 month.');
+    if (form.monthlyRent === '' || Number.isNaN(Number(form.monthlyRent))) return setError('Enter the monthly rent for the new term.');
+    if (!form.keepDeposit && !(depositMonths > 0)) {
+      return setError('Enter deposit months greater than 0, or keep the current deposit.');
+    }
+
+    const ok = confirm(
+      `Renew ${tenant.fullName}'s lease for ${fmtDate(form.startDate)} to ${fmtDate(form.endDate)} at ${peso(newRent)}/mo?\n\n` +
+        'The current lease is kept in history and marked as superseded.'
+    );
+    if (!ok) return;
+
+    const payload = {
+      startDate: form.startDate,
+      endDate: form.endDate,
+      durationMonths: Number(form.durationMonths),
+      monthlyRent: newRent,
+      notes: form.notes.trim() || undefined,
+      advanceMonths,
+      advanceMethod: advanceMonths > 0 ? form.advanceMethod || undefined : undefined,
+      advanceReferenceNumber: advanceMonths > 0 ? form.advanceReferenceNumber || undefined : undefined,
+    };
+    if (!form.keepDeposit) {
+      payload.depositMonths = depositMonths;
+      // Sent as an explicit amount so an exact figure on the old deposit can't override the new months.
+      payload.depositAmount = Math.round(depositMonths * newRent * 100) / 100;
+      payload.depositMethod = form.depositMethod || undefined;
+      payload.depositReferenceNumber = form.depositReferenceNumber || undefined;
+    }
+
+    setBusy(true);
+    try {
+      const { data } = await client.post(`/contracts/${contract._id}/renew`, payload);
+      onRenewed(data.contract);
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Could not renew the lease. Please try again.');
+      setBusy(false);
+    }
+  };
+
+  const input = 'mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm';
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-line bg-canvas/40 p-4">
+      {error && <p className="text-sm text-status-overdue">{error}</p>}
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <div>
+          <label className="text-xs text-ink/50">New start date</label>
+          <input required type="date" value={form.startDate} onChange={(e) => handleStart(e.target.value)} className={input} />
+        </div>
+        <div>
+          <label className="text-xs text-ink/50">Duration (months)</label>
+          <NumberInput required min={1} max={120} value={form.durationMonths} onChange={handleDuration} className={input} />
+        </div>
+        <div>
+          <label className="text-xs text-ink/50">New end date</label>
+          <input required type="date" value={form.endDate} onChange={(e) => handleEnd(e.target.value)} className={input} />
+        </div>
+        <div>
+          <label className="text-xs text-ink/50">Monthly rent for the new term</label>
+          <NumberInput required decimals={2} commas value={form.monthlyRent} onChange={(monthlyRent) => set({ monthlyRent })} className={input} />
+          <p className="mt-1 text-[11px] text-ink/40">
+            {rentDelta === 0
+              ? `Same as the current ${peso(currentRent)}/mo`
+              : `${rentDelta > 0 ? '+' : '-'}${peso(Math.abs(rentDelta))}/mo vs the current ${peso(currentRent)}${
+                  currentRent > 0 ? ` (${rentDelta > 0 ? '+' : '-'}${Math.abs(Math.round((rentDelta / currentRent) * 1000) / 10)}%)` : ''
+                }`}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="space-y-2 rounded-lg border border-line bg-surface p-3">
+          <FundEditor
+            label="Advance collected at renewal"
+            monthlyRent={newRent}
+            mode="months"
+            values={{ months: form.advanceMonths }}
+            onChange={(v) => set({ advanceMonths: v.months })}
+          />
+          {advanceMonths > 0 && (
+            <PaymentDetailsEditor
+              method={form.advanceMethod}
+              referenceNumber={form.advanceReferenceNumber}
+              onChange={({ method, referenceNumber }) => set({ advanceMethod: method, advanceReferenceNumber: referenceNumber })}
+            />
+          )}
+          {advanceMonths === 0 && <p className="text-[11px] text-ink/40">0 months means no new advance is collected.</p>}
+        </div>
+
+        <div className="space-y-2 rounded-lg border border-line bg-surface p-3">
+          <label className="flex cursor-pointer items-start gap-2 text-xs font-medium text-ink/70">
+            <input
+              type="checkbox"
+              checked={form.keepDeposit}
+              onChange={(e) => set({ keepDeposit: e.target.checked })}
+              className="mt-0.5"
+            />
+            <span>
+              Keep the current security deposit
+              <span className="block font-normal text-ink/45">{peso(currentDeposit)} carries over to the new lease</span>
+            </span>
+          </label>
+          {!form.keepDeposit && (
+            <>
+              <FundEditor
+                label="New security deposit"
+                monthlyRent={newRent}
+                mode="months"
+                values={{ months: form.depositMonths }}
+                onChange={(v) => set({ depositMonths: v.months })}
+              />
+              <PaymentDetailsEditor
+                method={form.depositMethod}
+                referenceNumber={form.depositReferenceNumber}
+                onChange={({ method, referenceNumber }) => set({ depositMethod: method, depositReferenceNumber: referenceNumber })}
+              />
+            </>
+          )}
+        </div>
+      </div>
+
+      <textarea
+        placeholder="Renewal notes (optional)"
+        value={form.notes}
+        onChange={(e) => set({ notes: e.target.value })}
+        rows={2}
+        className="w-full rounded-lg border border-line px-3 py-2 text-sm"
+      />
+
+      {form.startDate && form.endDate && (
+        <div className="rounded-lg bg-surface px-3 py-2.5 text-sm">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-ink/40">New term</p>
+          <p className="font-medium">
+            {fmtDate(form.startDate)} &ndash; {fmtDate(form.endDate)}{' '}
+            <span className="font-normal text-ink/50">
+              &middot; {form.durationMonths || 0} month(s) &middot; {peso(newRent)}/mo
+              {advanceMonths > 0 && <> &middot; {peso(advanceAmount)} advance</>}
+            </span>
+          </p>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark disabled:opacity-60"
+        >
+          {busy ? 'Renewing...' : 'Confirm renewal'}
+        </button>
+        <button type="button" onClick={onCancel} disabled={busy} className="rounded-lg border border-line px-4 py-2 text-sm font-medium hover:bg-canvas">
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// Only an active tenant with an active lease can be renewed (the backend
+// rejects anything else), so the Renew Lease button is hidden otherwise.
+const canRenewLease = (tenant) => tenant.status === 'active' && tenant.contract?.status === 'active';
+
+// Days until the current lease ends (negative once it has ended).
+const daysUntilLeaseEnd = (tenant) => Math.ceil((new Date(tenant.contract.endDate) - new Date()) / 86400000);
+
+// Opened by the "Renew Lease" button on a tenant's row: shows where the
+// current lease stands, then the renewal form.
+function RenewLeasePanel({ tenant, onCancel, onRenewed }) {
+  const contract = tenant.contract;
+  const daysLeft = daysUntilLeaseEnd(tenant);
+  const standing =
+    daysLeft < 0
+      ? { text: `Ended ${Math.abs(daysLeft)} day(s) ago`, cls: 'bg-status-overdueSoft text-status-overdue' }
+      : daysLeft <= 30
+        ? { text: `Ends in ${daysLeft} day(s)`, cls: 'bg-status-pendingSoft text-status-pending' }
+        : { text: `Ends in ${daysLeft} days`, cls: 'bg-canvas text-ink/60' };
+
+  return (
+    <div className="space-y-3 border-t border-line pt-4">
+      <div>
+        <p className="text-sm font-medium">Renew lease</p>
+        <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-ink/50">
+          Current lease: {new Date(contract.startDate).toLocaleDateString()} &ndash; {new Date(contract.endDate).toLocaleDateString()}
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${standing.cls}`}>{standing.text}</span>
+        </p>
+      </div>
+      <RenewLeaseForm tenant={tenant} onCancel={onCancel} onRenewed={onRenewed} />
+    </div>
+  );
+}
+
 export default function Tenants() {
   const [tenants, setTenants] = useState([]);
   const [vacantUnits, setVacantUnits] = useState([]);
@@ -233,6 +512,11 @@ export default function Tenants() {
   const [manageMode, setManageMode] = useState(false);
 
   const [expandedLeaseId, setExpandedLeaseId] = useState(null);
+  const [notice, setNotice] = useState('');
+  const [renewingTenantId, setRenewingTenantId] = useState(null);
+  // Toolbar: free-text search + which group of tenants to list. Active is the default view.
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('active');
 
   const loadTenants = async () => {
     const { data } = await client.get('/tenants');
@@ -307,6 +591,8 @@ export default function Tenants() {
 
   const startEditing = (tenant) => {
     setShowForm(false);
+    setRenewingTenantId(null);
+    setNotice('');
     setError('');
     setEditError('');
     setEditingTenantId(tenant._id);
@@ -325,6 +611,24 @@ export default function Tenants() {
     setEditingTenantId(null);
     setEditForm(null);
     setEditError('');
+  };
+
+  // After a successful renewal: close the form, refresh, and open the lease
+  // panel so the new term is immediately visible.
+  const startRenewing = (tenant) => {
+    setShowForm(false);
+    cancelEditing();
+    setNotice('');
+    setRenewingTenantId(tenant._id);
+  };
+
+  const handleRenewed = async (tenant, contract) => {
+    setRenewingTenantId(null);
+    await loadTenants();
+    setExpandedLeaseId(tenant._id);
+    setNotice(
+      `${tenant.fullName}'s lease was renewed until ${new Date(contract.endDate).toLocaleDateString()}. The previous lease is kept in history.`
+    );
   };
 
   const handleUpdateTenant = async (e) => {
@@ -403,11 +707,27 @@ export default function Tenants() {
     setShowForm((s) => !s);
   };
 
+  // "Active" also covers tenants serving notice (they still live there);
+  // "Moved out" is everyone who has left.
+  const MOVED_OUT = ['vacated', 'inactive'];
+  const matchesFilter = (t) =>
+    statusFilter === 'all' ? true : statusFilter === 'moved' ? MOVED_OUT.includes(t.status) : !MOVED_OUT.includes(t.status);
+  const searchTerm = search.trim().toLowerCase();
+  const matchesSearch = (t) =>
+    !searchTerm ||
+    [t.fullName, t.unit?.name, t.property?.name, t.email, t.phone].some((v) => String(v || '').toLowerCase().includes(searchTerm));
+  const visibleTenants = tenants.filter((t) => matchesFilter(t) && matchesSearch(t));
+  const filterCounts = {
+    active: tenants.filter((t) => !MOVED_OUT.includes(t.status)).length,
+    moved: tenants.filter((t) => MOVED_OUT.includes(t.status)).length,
+    all: tenants.length,
+  };
+
   return (
     <div className="space-y-6">
       <BentoCard className="relative overflow-hidden">
         <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
-        <div className="relative flex items-center justify-between">
+        <div className="relative">
           <div>
             <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
@@ -415,28 +735,6 @@ export default function Tenants() {
             </div>
             <h1 className="mt-1 text-3xl font-bold tracking-tight">Tenants &amp; Leases</h1>
             <p className="mt-1 text-sm text-ink/50">Active leases, move-ins, and upcoming renewals.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setManageMode((m) => !m)}
-              aria-pressed={manageMode}
-              title="Manage tenants"
-              className={`rounded-lg border p-2 text-sm transition-colors ${
-                manageMode ? 'border-primary bg-primary text-white' : 'border-line text-ink/50 hover:text-ink'
-              }`}
-            >
-              <FontAwesomeIcon icon={faGear} />
-            </button>
-            <button
-              onClick={handleAddTenantClick}
-              aria-disabled={Boolean(addTenantBlock)}
-              title={addTenantBlock ? addTenantBlock.title : undefined}
-              className={`rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark ${
-                addTenantBlock ? 'opacity-40' : ''
-              }`}
-            >
-              + Add Tenant
-            </button>
           </div>
         </div>
       </BentoCard>
@@ -473,9 +771,75 @@ export default function Tenants() {
         </div>
       )}
 
+      {/* Toolbar (same one-line treatment as the Bill Checklist): search, an
+          Active / Moved out filter, Manage mode and Add Tenant. */}
+      <BentoCard className="p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-[200px] flex-1">
+            <FontAwesomeIcon icon={faMagnifyingGlass} className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink/35" />
+            <input
+              placeholder="Search tenant, unit or property..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-11 w-full rounded-full bg-canvas pl-10 pr-4 text-sm outline-none placeholder:text-ink/35 focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+
+          <div
+            role="group"
+            aria-label="Filter tenants"
+            className="scrollbar-hide flex h-11 max-w-full items-center gap-0.5 overflow-x-auto rounded-full bg-canvas p-1"
+          >
+            {[
+              ['active', 'Active'],
+              ['moved', 'Moved out'],
+              ['all', 'All'],
+            ].map(([key, label]) => {
+              const on = statusFilter === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setStatusFilter(key)}
+                  aria-pressed={on}
+                  className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-medium transition-colors ${
+                    on ? 'bg-primary text-white' : 'text-ink/60 hover:bg-line'
+                  }`}
+                >
+                  {label}
+                  <span className={on ? 'opacity-80' : 'text-ink/40'}>{filterCounts[key]}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={handleAddTenantClick}
+            aria-disabled={Boolean(addTenantBlock)}
+            title={addTenantBlock ? addTenantBlock.title : undefined}
+            className={`h-11 shrink-0 rounded-full bg-primary px-5 text-sm font-semibold text-white hover:bg-primary-dark ${
+              addTenantBlock ? 'opacity-40' : ''
+            }`}
+          >
+            + Add Tenant
+          </button>
+          <button
+            onClick={() => setManageMode((m) => !m)}
+            aria-pressed={manageMode}
+            aria-label="Manage tenants"
+            title="Manage tenants"
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors ${
+              manageMode ? 'bg-primary text-white' : 'bg-canvas text-ink/60 hover:bg-line'
+            }`}
+          >
+            <FontAwesomeIcon icon={faGear} />
+          </button>
+
+        </div>
+      </BentoCard>
+
       {manageMode && (
         <p className="-mt-3 text-xs text-ink/45">
-          Manage mode is on — tenant rows below now show Edit and Move Out actions.
+          Manage mode is on — tenant rows below now show Edit, Renew Lease and Move Out actions.
         </p>
       )}
 
@@ -515,6 +879,11 @@ export default function Tenants() {
         </div>
       )}
       {error && <p className="text-sm text-status-overdue">{error}</p>}
+      {notice && (
+        <p role="status" className="rounded-xl bg-status-paidSoft px-4 py-2.5 text-sm text-status-paid">
+          {notice}
+        </p>
+      )}
 
       {showForm && (
         <BentoCard>
@@ -732,13 +1101,42 @@ export default function Tenants() {
           <p className="font-medium">No tenants yet</p>
           <p className="mt-1 text-sm text-ink/50">Add a tenant to begin tracking monthly rent.</p>
         </BentoCard>
+      ) : visibleTenants.length === 0 ? (
+        <BentoCard className="text-center">
+          <p className="font-medium">
+            {searchTerm
+              ? 'No tenants match your search'
+              : statusFilter === 'moved'
+                ? 'No moved-out tenants'
+                : 'No active tenants'}
+          </p>
+          <p className="mt-1 text-sm text-ink/50">
+            {searchTerm
+              ? 'Try a different name, unit or property, or switch the filter.'
+              : statusFilter === 'moved'
+                ? 'Tenants you move out will show up here, with their history preserved.'
+                : 'Tenants who have moved out are under the Moved out filter.'}
+          </p>
+          {(searchTerm || (statusFilter !== 'all' && filterCounts.all > 0)) && (
+            <button
+              onClick={() => {
+                setSearch('');
+                setStatusFilter('all');
+              }}
+              className="mt-3 rounded-full border border-line px-4 py-1.5 text-xs font-medium hover:bg-canvas"
+            >
+              Show all tenants
+            </button>
+          )}
+        </BentoCard>
       ) : (
         <div className="space-y-2">
-          {tenants.map((t) => {
+          {visibleTenants.map((t) => {
             const statusInfo = STATUS_LABEL[t.status] || STATUS_LABEL.inactive;
             const isEditing = editingTenantId === t._id;
+            const isRenewing = renewingTenantId === t._id && canRenewLease(t);
             return (
-              <BentoCard key={t._id} className={isEditing ? 'space-y-4' : ''}>
+              <BentoCard key={t._id} className={isEditing || isRenewing ? 'space-y-4' : ''}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Avatar name={t.fullName} />
@@ -776,7 +1174,21 @@ export default function Tenants() {
                         {isEditing ? 'Cancel' : 'Edit'}
                       </button>
                     )}
-                    {manageMode && t.status === 'active' && !isEditing && (
+                    {manageMode && canRenewLease(t) && !isEditing && (
+                      <button
+                        onClick={() => (isRenewing ? setRenewingTenantId(null) : startRenewing(t))}
+                        className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${
+                          isRenewing
+                            ? 'border-line hover:bg-canvas'
+                            : daysUntilLeaseEnd(t) <= 30
+                              ? 'border-primary text-primary hover:bg-primary hover:text-white'
+                              : 'border-line hover:bg-canvas'
+                        }`}
+                      >
+                        {isRenewing ? 'Cancel Renewal' : 'Renew Lease'}
+                      </button>
+                    )}
+                    {manageMode && t.status === 'active' && !isEditing && !isRenewing && (
                       <button onClick={() => handleMoveOut(t._id)} className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:bg-canvas">
                         Move Out
                       </button>
@@ -826,7 +1238,7 @@ export default function Tenants() {
                       )}
                     </div>
                     <p className="text-[11px] text-ink/40">
-                      Lease terms are locked in at signing and can only change through a renewal - this view is read-only.
+                      Lease terms are locked in at signing and can only change through a renewal. To renew, turn on Manage mode and click Renew Lease on this tenant.
                     </p>
                   </div>
                 )}
@@ -909,6 +1321,14 @@ export default function Tenants() {
                       </button>
                     </div>
                   </form>
+                )}
+
+                {isRenewing && (
+                  <RenewLeasePanel
+                    tenant={t}
+                    onCancel={() => setRenewingTenantId(null)}
+                    onRenewed={(contract) => handleRenewed(t, contract)}
+                  />
                 )}
               </BentoCard>
             );
