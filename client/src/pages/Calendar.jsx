@@ -6,8 +6,9 @@ import Avatar from '../components/Avatar.jsx';
 import { Skeleton, SkeletonText } from '../components/Skeleton.jsx';
 import MonthPicker from '../components/MonthPicker.jsx';
 import ExportRangeModal from '../components/ExportRangeModal.jsx';
+import FilterDropdown from '../components/FilterDropdown.jsx';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileExcel, faShieldHalved, faTriangleExclamation, faWallet } from '@fortawesome/free-solid-svg-icons';
+import { faFileExcel, faMagnifyingGlass, faShieldHalved, faTriangleExclamation, faWallet } from '@fortawesome/free-solid-svg-icons';
 import CycleBreakdownModal from '../components/CycleBreakdownModal.jsx';
 import StatCard from '../components/StatCard.jsx';
 import { fetchLedgerRange, downloadLedgerWorkbook } from '../lib/ledgerExport.js';
@@ -35,10 +36,18 @@ const LEDGER_FILTERS = ['all', 'paid', 'pending', 'overdue', 'upcoming', 'verifi
 function CalendarSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Skeleton className="h-9 w-64" />
-        <Skeleton className="h-9 w-32 rounded-full" />
-      </div>
+      <BentoCard>
+        <SkeletonText width="w-40" className="h-3" />
+        <Skeleton className="mt-2 h-8 w-72" />
+      </BentoCard>
+      <BentoCard className="p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Skeleton className="h-11 min-w-[200px] flex-1 rounded-full" />
+          <Skeleton className="h-11 w-52 rounded-full" />
+          <Skeleton className="h-11 w-44 rounded-full" />
+          <Skeleton className="h-11 w-36 rounded-full" />
+        </div>
+      </BentoCard>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {[0, 1, 2].map((i) => (
@@ -83,6 +92,7 @@ function normalizeRent(r) {
     billType: 'rent',
     tenantName: r.tenant?.fullName,
     unitName: r.unit?.name,
+    propertyName: r.property?.name,
     amount: r.amountDue,
     dueDate: r.dueDate,
     status: r.status,
@@ -95,6 +105,7 @@ function normalizeUtility(b) {
     billType: b.type,
     tenantName: b.tenant?.fullName,
     unitName: b.unit?.name,
+    propertyName: b.property?.name,
     // Once paid, show what was ACTUALLY paid rather than the original
     // (possibly never-set) expected amount.
     amount: b.status === 'paid' && b.paidAmount != null ? b.paidAmount : b.amountDue,
@@ -120,8 +131,14 @@ export default function Calendar() {
   // calendar the source of truth regardless of how many bills there are.
   const calendarCardRef = useRef(null);
   const [calendarHeight, setCalendarHeight] = useState(null);
-  const [records, setRecords] = useState([]);
-  const [utilityBills, setUtilityBills] = useState([]);
+  const [rawRecords, setRawRecords] = useState([]);
+  const [rawUtilityBills, setRawUtilityBills] = useState([]);
+  // Toolbar: property scope applies to everything on the page (summary cards,
+  // calendar, bills list, ledger, breakdowns, export); search only narrows the
+  // detail views (calendar cells, bills list, ledger table).
+  const [properties, setProperties] = useState([]);
+  const [propertyFilter, setPropertyFilter] = useState('all');
+  const [search, setSearch] = useState('');
   const [ledgerFilter, setLedgerFilter] = useState('all');
   const [loading, setLoading] = useState(true);
 
@@ -169,11 +186,18 @@ export default function Calendar() {
         client.get('/utility-bills', { params: { period } }),
       ])
     ).then(([rentRes, utilityRes]) => {
-      setRecords(rentRes.data.records);
-      setUtilityBills(utilityRes.data.records);
+      setRawRecords(rentRes.data.records);
+      setRawUtilityBills(utilityRes.data.records);
       setLoading(false);
     });
   };
+
+  useEffect(() => {
+    client
+      .get('/properties')
+      .then(({ data }) => setProperties(data.properties || []))
+      .catch(() => setProperties([]));
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -183,6 +207,17 @@ export default function Calendar() {
 
   const weeks = useMemo(() => buildMonthGrid(cursor.getFullYear(), cursor.getMonth()), [cursor]);
 
+  // Property scope: everything below works from these, so one filter
+  // consistently drives the whole page.
+  const records = useMemo(
+    () => (propertyFilter === 'all' ? rawRecords : rawRecords.filter((r) => r.property?._id === propertyFilter)),
+    [rawRecords, propertyFilter]
+  );
+  const utilityBills = useMemo(
+    () => (propertyFilter === 'all' ? rawUtilityBills : rawUtilityBills.filter((b) => b.property?._id === propertyFilter)),
+    [rawUtilityBills, propertyFilter]
+  );
+
   // Every due item (rent + all utility types) normalized into one shape and
   // grouped by day-of-month, so the calendar and the "This Month's Bills"
   // list are always showing the exact same data.
@@ -191,15 +226,23 @@ export default function Calendar() {
     [records, utilityBills]
   );
 
+  const searchTerm = search.trim().toLowerCase();
+  const textMatches = (...values) => !searchTerm || values.some((v) => String(v || '').toLowerCase().includes(searchTerm));
+  const visibleItems = useMemo(
+    () => allItems.filter((i) => textMatches(i.tenantName, i.unitName, i.propertyName)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allItems, searchTerm]
+  );
+
   const itemsByDay = useMemo(() => {
     const map = {};
-    allItems.forEach((item) => {
+    visibleItems.forEach((item) => {
       const day = new Date(item.dueDate).getDate();
       map[day] = map[day] || [];
       map[day].push(item);
     });
     return map;
-  }, [allItems]);
+  }, [visibleItems]);
 
   const totals = records.reduce(
     (acc, r) => {
@@ -213,11 +256,12 @@ export default function Calendar() {
 
   const filteredLedger = records
     .filter((r) => ledgerFilter === 'all' || r.status === ledgerFilter)
+    .filter((r) => textMatches(r.tenant?.fullName, r.unit?.name, r.property?.name))
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
 
   const isCurrentMonth = periodKeyOf(cursor) === periodKeyOf(today);
 
-  const upcomingBills = allItems
+  const upcomingBills = visibleItems
     .filter((i) => i.status !== 'paid')
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
 
@@ -233,14 +277,19 @@ export default function Calendar() {
   const utilitiesDueTotal = utilityBills.reduce((sum, b) => sum + (b.amountDue || 0), 0);
   const periodLabel = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
+  const propertyOptions = ['all', ...properties.map((p) => p._id)];
+  const propertyNameById = Object.fromEntries(properties.map((p) => [p._id, p.name]));
+  const propertyLabel = (v) => (v === 'all' ? `All Properties (${properties.length})` : propertyNameById[v] || 'Property');
+  const exportScopeName = propertyFilter === 'all' ? '' : propertyNameById[propertyFilter] || '';
+
   // Fetches every month in the chosen range, then builds and downloads the
   // workbook. Errors bubble up to the export dialog, which shows them inline.
   async function exportLedgerExcel(from, to) {
-    const data = await fetchLedgerRange(client, from, to);
+    const data = await fetchLedgerRange(client, from, to, propertyFilter === 'all' ? null : propertyFilter);
     if (data.rentRecords.length === 0 && data.utilityRecords.length === 0) {
       throw new Error('There are no rent or utility bills in that range to export.');
     }
-    await downloadLedgerWorkbook(data, from, to);
+    await downloadLedgerWorkbook(data, from, to, exportScopeName);
   }
 
   if (loading) return <CalendarSkeleton />;
@@ -251,7 +300,7 @@ export default function Calendar() {
         <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-bento" aria-hidden="true">
           <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
         </div>
-        <div className="relative flex flex-wrap items-center justify-between gap-3">
+        <div className="relative">
           <div>
             <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
               <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
@@ -262,47 +311,72 @@ export default function Calendar() {
               Visual chronological schedule of all rent, electricity, water, and wifi collections across all managed units.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex h-11 items-center gap-1 rounded-full bg-canvas px-1">
-              <button
-                onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-base text-ink/60 hover:bg-line"
-                aria-label="Previous month"
-              >
-                &lsaquo;
-              </button>
-              <MonthPicker
-                value={cursor}
-                onChange={setCursor}
-                renderTrigger={({ open, toggle, label }) => (
-                  <button
-                    onClick={toggle}
-                    aria-haspopup="dialog"
-                    aria-expanded={open}
-                    className={`flex h-9 items-center rounded-full px-4 text-sm font-medium transition-colors ${
-                      open ? 'bg-surface shadow-sm' : 'hover:bg-line'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                )}
-              />
-              <button
-                onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-base text-ink/60 hover:bg-line"
-                aria-label="Next month"
-              >
-                &rsaquo;
-              </button>
-            </div>
-            <button
-              onClick={() => setExportOpen(true)}
-              className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 text-sm font-medium text-white hover:bg-ink/90"
-            >
-              <FontAwesomeIcon icon={faFileExcel} />
-              Export Excel
-            </button>
+        </div>
+      </BentoCard>
+
+      {/* Toolbar (same one-line treatment as the other pages): search, month
+          picker, property filter and Export Excel. */}
+      <BentoCard className="p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-[200px] flex-1">
+            <FontAwesomeIcon icon={faMagnifyingGlass} className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink/35" />
+            <input
+              placeholder="Search tenant, unit or property..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-11 w-full rounded-full bg-canvas pl-10 pr-4 text-sm outline-none placeholder:text-ink/35 focus:ring-2 focus:ring-primary/20"
+            />
           </div>
+
+        <div className="flex h-11 items-center gap-1 rounded-full bg-canvas px-1">
+          <button
+            onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-base text-ink/60 hover:bg-line"
+            aria-label="Previous month"
+          >
+            &lsaquo;
+          </button>
+          <MonthPicker
+            value={cursor}
+            onChange={setCursor}
+            renderTrigger={({ open, toggle, label }) => (
+              <button
+                onClick={toggle}
+                aria-haspopup="dialog"
+                aria-expanded={open}
+                className={`flex h-9 items-center rounded-full px-4 text-sm font-medium transition-colors ${
+                  open ? 'bg-surface shadow-sm' : 'hover:bg-line'
+                }`}
+              >
+                {label}
+              </button>
+            )}
+          />
+          <button
+            onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-base text-ink/60 hover:bg-line"
+            aria-label="Next month"
+          >
+            &rsaquo;
+          </button>
+        </div>
+
+          <FilterDropdown
+            size="bar"
+            value={propertyFilter}
+            options={propertyOptions}
+            onChange={setPropertyFilter}
+            renderTrigger={propertyLabel}
+            renderOption={propertyLabel}
+          />
+
+        <button
+          onClick={() => setExportOpen(true)}
+          className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 text-sm font-medium text-white hover:bg-ink/90"
+        >
+          <FontAwesomeIcon icon={faFileExcel} />
+          Export Excel
+        </button>
         </div>
       </BentoCard>
 
@@ -311,6 +385,7 @@ export default function Calendar() {
         onClose={() => setExportOpen(false)}
         defaultMonth={new Date(cursor.getFullYear(), cursor.getMonth(), 1)}
         onExport={exportLedgerExcel}
+        propertyLabel={propertyFilter === 'all' ? 'All properties' : exportScopeName || 'Selected property'}
       />
 
       {/* Cycle summary strip - shared StatCard style; each card opens a breakdown. */}

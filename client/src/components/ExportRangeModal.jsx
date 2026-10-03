@@ -39,7 +39,7 @@ function PickerField({ label, value, onChange, min, max }) {
 
 // Mounted only while the modal is open (Modal renders nothing when closed),
 // so its From/To state resets to the current month every time it opens.
-function ExportForm({ defaultMonth, onClose, onExport }) {
+function ExportForm({ defaultMonth, propertyLabel, onClose, onExport }) {
   const [from, setFrom] = useState(defaultMonth);
   const [to, setTo] = useState(defaultMonth);
   const [busy, setBusy] = useState(false);
@@ -74,6 +74,10 @@ function ExportForm({ defaultMonth, onClose, onExport }) {
     <div className="space-y-4">
       <p className="text-sm text-ink/60">
         Choose which months to include. The file has a monthly summary plus every rent and utility bill in the range.
+      </p>
+      <p className="rounded-lg bg-canvas px-3 py-2 text-xs text-ink/60">
+        Properties included: <span className="font-semibold text-ink">{propertyLabel}</span>
+        {propertyLabel !== 'All properties' && ' (change it with the property filter on the page)'}
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -141,10 +145,10 @@ function ExportForm({ defaultMonth, onClose, onExport }) {
   );
 }
 
-export default function ExportRangeModal({ open, onClose, defaultMonth, onExport }) {
+export default function ExportRangeModal({ open, onClose, defaultMonth, onExport, propertyLabel = 'All properties' }) {
   return (
     <Modal open={open} onClose={onClose} title="Export to Excel" size="md">
-      <ExportForm defaultMonth={defaultMonth} onClose={onClose} onExport={onExport} />
+      <ExportForm defaultMonth={defaultMonth} propertyLabel={propertyLabel} onClose={onClose} onExport={onExport} />
     </Modal>
   );
 }

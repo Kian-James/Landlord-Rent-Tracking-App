@@ -20,7 +20,7 @@ export function monthsBetween(from, to) {
 // Pulls rent + utility records for every month in the range. Bills are
 // generated for each month first, exactly as the calendar does when you
 // browse to a month, so an exported month matches what the calendar shows.
-export async function fetchLedgerRange(client, from, to) {
+export async function fetchLedgerRange(client, from, to, propertyId = null) {
   const months = monthsBetween(from, to);
   const rentRecords = [];
   const utilityRecords = [];
@@ -32,9 +32,12 @@ export async function fetchLedgerRange(client, from, to) {
       client.post('/rent-records/generate', { referenceDate }),
       client.post('/utility-bills/generate', { referenceDate }),
     ]);
+    // propertyId (optional) scopes the export to one property; the API
+    // supports it on both endpoints.
+    const params = propertyId ? { period, propertyId } : { period };
     const [rentRes, utilityRes] = await Promise.all([
-      client.get('/rent-records', { params: { period } }),
-      client.get('/utility-bills', { params: { period } }),
+      client.get('/rent-records', { params }),
+      client.get('/utility-bills', { params }),
     ]);
     rentRecords.push(...rentRes.data.records.map((r) => ({ ...r, period })));
     utilityRecords.push(...utilityRes.data.records.map((b) => ({ ...b, period })));
@@ -231,15 +234,18 @@ export function buildLedgerWorkbook(ExcelJS, { months, rentRecords, utilityRecor
   return wb;
 }
 
-export function ledgerFileName(from, to) {
+export function ledgerFileName(from, to, propertyName = '') {
   const a = monthKey(from);
   const b = monthKey(to);
-  return a === b ? `Rentora-ledger-${a}.xlsx` : `Rentora-ledger-${a}_to_${b}.xlsx`;
+  const slug = propertyName
+    ? `-${propertyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`
+    : '';
+  return a === b ? `Rentora-ledger${slug}-${a}.xlsx` : `Rentora-ledger${slug}-${a}_to_${b}.xlsx`;
 }
 
 // exceljs is large, so it's only pulled in (as its own chunk) the first time
 // someone actually exports.
-export async function downloadLedgerWorkbook(data, from, to) {
+export async function downloadLedgerWorkbook(data, from, to, propertyName = '') {
   const { default: ExcelJS } = await import('exceljs');
   const workbook = buildLedgerWorkbook(ExcelJS, data);
   const buffer = await workbook.xlsx.writeBuffer();
@@ -249,7 +255,7 @@ export async function downloadLedgerWorkbook(data, from, to) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = ledgerFileName(from, to);
+  a.download = ledgerFileName(from, to, propertyName);
   document.body.appendChild(a);
   a.click();
   a.remove();
