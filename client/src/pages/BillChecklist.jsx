@@ -6,7 +6,7 @@ import client from '../api/client.js';
 import BentoCard from '../components/BentoCard.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
 import Avatar from '../components/Avatar.jsx';
-import Modal from '../components/Modal.jsx';
+import ConfirmPaidModal from '../components/ConfirmPaidModal.jsx';
 import BillBreakdownModal from '../components/BillBreakdownModal.jsx';
 import FilterDropdown from '../components/FilterDropdown.jsx';
 import { Skeleton, SkeletonText, SkeletonCircle } from '../components/Skeleton.jsx';
@@ -125,11 +125,19 @@ export default function BillChecklist() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // The item currently awaiting a paid-amount entry (only used for utility
-  // bills whose amount was never configured - see handleMarkPaid below).
-  const [payingItem, setPayingItem] = useState(null);
-  const [paidAmountInput, setPaidAmountInput] = useState('');
-  const [payError, setPayError] = useState('');
+  // Marking paid always goes through one confirmation modal. `confirmItems`
+  // is the list being confirmed (one bill from a row's Mark Paid button, or
+  // the whole selection from the bulk bar); null = closed.
+  const [confirmItems, setConfirmItems] = useState(null);
+  const [confirmAmounts, setConfirmAmounts] = useState({});
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [confirmDone, setConfirmDone] = useState(0); // bills already marked paid in this confirm session (survives retries)
+  const [confirmError, setConfirmError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  // Bulk selection: keys of the form "rent:<id>" / "electricity:<id>". Only
+  // unpaid, currently visible bills ever count as selected (see selectedItems).
+  const [selected, setSelected] = useState(() => new Set());
 
   // Gear icon next to search toggles this - when on, paid rows show a
   // "Mark Unpaid" action instead of nothing, so undoing a mistaken
@@ -160,39 +168,69 @@ export default function BillChecklist() {
     load();
   }, []);
 
-  const handleMarkPaid = async (item) => {
-    if (item.billType === 'rent') {
-      await client.post(`/rent-records/${item.id}/mark-paid`, {});
-      await load();
-      return;
-    }
+  const itemKey = (item) => `${item.billType}:${item.id}`;
 
-    // Utility bills with no amount configured need the landlord to say
-    // what they actually paid, so the record reflects reality instead of
-    // permanently showing "Amount not set" even after payment.
-    if (item.amount === null || item.amount === undefined) {
-      setPayingItem(item);
-      setPaidAmountInput('');
-      setPayError('');
-      return;
-    }
-
-    await client.post(`/utility-bills/${item.id}/mark-paid`, {});
-    await load();
+  const openConfirm = (items) => {
+    setConfirmItems(items);
+    setConfirmAmounts({});
+    setConfirmError('');
+    setConfirmDone(0);
   };
 
-  const confirmPayWithAmount = async (e) => {
-    e.preventDefault();
-    setPayError('');
-    try {
-      await client.post(`/utility-bills/${payingItem.id}/mark-paid`, {
-        paidAmount: paidAmountInput ? Number(paidAmountInput) : undefined,
-      });
-      setPayingItem(null);
-      await load();
-    } catch (err) {
-      setPayError(err.response?.data?.error?.message || 'Could not mark this bill paid.');
+  const closeConfirm = () => {
+    setConfirmItems(null);
+    setConfirmError('');
+  };
+
+  // One request per bill. Utility bills with no configured amount can carry an
+  // optional "amount actually paid", so the record reflects reality instead of
+  // permanently showing "Amount not set".
+  const markPaidRequest = (item) => {
+    if (item.billType === 'rent') return client.post(`/rent-records/${item.id}/mark-paid`, {});
+    const typed = confirmAmounts[itemKey(item)];
+    const unset = item.amount === null || item.amount === undefined;
+    return client.post(`/utility-bills/${item.id}/mark-paid`, unset && typed ? { paidAmount: Number(typed) } : {});
+  };
+
+  const confirmPaid = async () => {
+    setConfirmBusy(true);
+    setConfirmError('');
+
+    // Sequential, so one failure never hides the others' results and we stay
+    // well inside the API rate limit.
+    const results = [];
+    for (const item of confirmItems) {
+      try {
+        await markPaidRequest(item);
+        results.push({ item, ok: true });
+      } catch (err) {
+        results.push({ item, ok: false, message: err.response?.data?.error?.message || 'Could not mark this bill paid.' });
+      }
     }
+    await load();
+
+    const done = results.filter((r) => r.ok);
+    const failed = results.filter((r) => !r.ok);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      done.forEach((r) => next.delete(itemKey(r.item)));
+      return next;
+    });
+
+    const totalDone = confirmDone + done.length;
+    if (failed.length === 0) {
+      closeConfirm();
+      setNotice(totalDone === 1 ? 'Marked 1 bill as paid.' : `Marked ${totalDone} bills as paid.`);
+      setTimeout(() => setNotice(''), 6000);
+    } else {
+      // Keep the modal open on just the ones that failed so they can retry.
+      setConfirmDone(totalDone);
+      setConfirmItems(failed.map((r) => r.item));
+      setConfirmError(
+        `${done.length > 0 ? `${done.length} marked paid. ` : ''}${failed.length} could not be marked paid: ${failed[0].message}`
+      );
+    }
+    setConfirmBusy(false);
   };
 
   const handleMarkUnpaid = async (item) => {
@@ -228,6 +266,21 @@ export default function BillChecklist() {
       return { status, items, total };
     })
     .filter((section) => section.items.length > 0);
+
+  // ---- bulk selection (derived from what's visible, so a bill that a filter
+  // or search hides can never be marked paid by accident) ----
+  const visibleUnpaid = filtered.filter((i) => i.status !== 'paid');
+  const selectedItems = visibleUnpaid.filter((i) => selected.has(itemKey(i)));
+  const allVisibleSelected = visibleUnpaid.length > 0 && selectedItems.length === visibleUnpaid.length;
+  const selectedTotal = selectedItems.reduce((sum, i) => sum + (i.amount || 0), 0);
+
+  const setMany = (items, on) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      items.forEach((i) => (on ? next.add(itemKey(i)) : next.delete(itemKey(i))));
+      return next;
+    });
+  const toggleOne = (item) => setMany([item], !selected.has(itemKey(item)));
 
   const countForType = (type) => (type === 'all' ? combined.length : combined.filter((i) => i.billType === type).length);
 
@@ -437,6 +490,12 @@ export default function BillChecklist() {
         </div>
       </BentoCard>
 
+      {notice && (
+        <p role="status" className="rounded-xl bg-status-paidSoft px-4 py-2.5 text-sm text-status-paid">
+          {notice}
+        </p>
+      )}
+
       {manageMode && (
         <p className="-mt-3 text-xs text-ink/45">
           Manage mode is on — paid bills below now show a "Mark Unpaid" action in case one was marked paid by mistake.
@@ -492,6 +551,19 @@ export default function BillChecklist() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink/50">
+                <th className="w-10 py-3 pl-4 pr-0">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all unpaid bills shown"
+                    disabled={visibleUnpaid.length === 0}
+                    checked={allVisibleSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = selectedItems.length > 0 && !allVisibleSelected;
+                    }}
+                    onChange={() => setMany(visibleUnpaid, !allVisibleSelected)}
+                    className="h-4 w-4 cursor-pointer rounded accent-primary disabled:cursor-not-allowed disabled:opacity-40"
+                  />
+                </th>
                 <th className="px-4 py-3 font-medium">Tenant &amp; Unit</th>
                 <th className="px-4 py-3 font-medium">Bill</th>
                 <th className="px-4 py-3 font-medium">Amount</th>
@@ -508,6 +580,17 @@ export default function BillChecklist() {
                   <React.Fragment key={section.status}>
                     {showGroupHeaders && (
                       <tr className="bg-canvas/60">
+                        <td className="py-2.5 pl-4 pr-0">
+                          {section.status !== 'paid' && (
+                            <input
+                              type="checkbox"
+                              aria-label={`Select all ${meta.label.toLowerCase()} bills`}
+                              checked={section.items.length > 0 && section.items.every((i) => selected.has(itemKey(i)))}
+                              onChange={(e) => setMany(section.items, e.target.checked)}
+                              className="h-4 w-4 cursor-pointer rounded accent-primary"
+                            />
+                          )}
+                        </td>
                         <td colSpan={6} className="px-4 py-2.5">
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                             <span className={`h-2 w-2 rounded-full ${STATUS_DOT[section.status]}`} aria-hidden="true" />
@@ -540,7 +623,18 @@ export default function BillChecklist() {
                         const style = ROW_STYLE[item.status] || ROW_STYLE.upcoming;
                         return (
                           <tr key={`${item.billType}-${item.id}`} className={style.tint}>
-                            <td className={`border-l-4 px-4 py-3 ${style.edge}`}>
+                            <td className={`w-10 border-l-4 py-3 pl-3 pr-0 ${style.edge}`}>
+                              {item.status !== 'paid' && (
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Select ${item.tenantName || item.unitName} ${BILL_TYPE_META[item.billType].label} bill`}
+                                  checked={selected.has(itemKey(item))}
+                                  onChange={() => toggleOne(item)}
+                                  className="h-4 w-4 cursor-pointer rounded accent-primary"
+                                />
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
                               <div className="flex items-center gap-2.5">
                                 <Avatar name={item.tenantName || item.unitName} size="sm" />
                                 <div>
@@ -563,7 +657,7 @@ export default function BillChecklist() {
                             <td className="px-4 py-3">
                               {item.status !== 'paid' ? (
                                 <button
-                                  onClick={() => handleMarkPaid(item)}
+                                  onClick={() => openConfirm([item])}
                                   className="rounded-full bg-success px-3 py-1 text-xs font-medium text-white hover:bg-success-dark"
                                 >
                                   Mark Paid
@@ -594,47 +688,40 @@ export default function BillChecklist() {
         onViewList={viewInList}
       />
 
-      <Modal open={!!payingItem} onClose={() => setPayingItem(null)} title="Mark Bill as Paid">
-        {payingItem && (
-          <form onSubmit={confirmPayWithAmount} className="space-y-3">
-            <div>
-              <p className="text-sm font-medium">
-                {payingItem.tenantName || 'Vacant'} &middot; {payingItem.unitName}
-              </p>
-              <p className="text-xs text-ink/50">
-                <BillIcon type={payingItem.billType} className="mr-1" />
-                {BILL_TYPE_META[payingItem.billType].label} &middot; due {new Date(payingItem.dueDate).toLocaleDateString()}
-              </p>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-ink/60">Amount Paid</label>
-              <input
-                autoFocus
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={paidAmountInput}
-                onChange={(e) => setPaidAmountInput(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm"
-              />
-            </div>
-            {payError && <p className="text-xs text-status-overdue">{payError}</p>}
-            <div className="flex gap-2">
-              <button type="submit" className="rounded-full bg-status-paid px-4 py-2 text-sm font-medium text-white">
-                Confirm
-              </button>
-              <button
-                type="button"
-                onClick={() => setPayingItem(null)}
-                className="rounded-full border border-line px-4 py-2 text-sm font-medium text-ink/60"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        )}
-      </Modal>
+      <ConfirmPaidModal
+        items={confirmItems}
+        amounts={confirmAmounts}
+        onAmountChange={(key, value) => setConfirmAmounts((prev) => ({ ...prev, [key]: value }))}
+        busy={confirmBusy}
+        error={confirmError}
+        onConfirm={confirmPaid}
+        onClose={closeConfirm}
+      />
+
+      {/* Bulk bar: appears as soon as one or more unpaid bills are ticked. Sits
+          above the mobile bottom nav, centred near the bottom on desktop. */}
+      {selectedItems.length > 0 && !confirmItems && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-20 z-40 flex justify-center px-4 lg:bottom-6">
+          <div className="pointer-events-auto flex flex-wrap items-center gap-x-3 gap-y-2 rounded-full bg-ink py-2 pl-5 pr-2 text-white shadow-xl">
+            <span className="text-sm font-semibold">{selectedItems.length} selected</span>
+            {selectedTotal > 0 && <span className="text-sm text-white/60">{peso(selectedTotal)}</span>}
+            <button
+              type="button"
+              onClick={() => setSelected(new Set())}
+              className="rounded-full px-3 py-1.5 text-xs font-medium text-white/70 hover:bg-white/10 hover:text-white"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => openConfirm(selectedItems)}
+              className="rounded-full bg-success px-4 py-2 text-sm font-semibold text-white hover:bg-success-dark"
+            >
+              Mark as paid
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
