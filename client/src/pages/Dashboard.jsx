@@ -11,6 +11,7 @@ import MonthPicker from '../components/MonthPicker.jsx';
 import StatCard from '../components/StatCard.jsx';
 import CycleBreakdownModal from '../components/CycleBreakdownModal.jsx';
 import ReviewStatModal from '../components/ReviewStatModal.jsx';
+import ConfirmPaidModal from '../components/ConfirmPaidModal.jsx';
 import { Skeleton, SkeletonText, SkeletonRow } from '../components/Skeleton.jsx';
 import { buildMonthGrid, periodKeyOf } from '../lib/calendarGrid.js';
 import { getCached, setCached, cacheKey, invalidate } from '../lib/apiCache.js';
@@ -21,6 +22,10 @@ import {
   faTriangleExclamation,
   faFileLines,
   faMagnifyingGlass,
+  faCheck,
+  faCircleCheck,
+  faClock,
+  faFileSignature,
 } from '@fortawesome/free-solid-svg-icons';
 import { ResponsiveContainer, BarChart, Bar, Cell, XAxis, Tooltip, PieChart, Pie } from 'recharts';
 
@@ -39,12 +44,155 @@ function greeting() {
   return 'Good evening';
 }
 
+// Needs Attention cards. Same recipe as the unit cards: a coloured top edge
+// and a soft tint fading to white, an icon chip + label, one big figure, and
+// a single clear action pinned to the bottom. Class names are spelled out in
+// full so Tailwind can see them.
 const ATTENTION_STYLE = {
-  overdue: { tint: 'bg-status-overdueSoft', label: 'Overdue', labelColor: 'text-status-overdue' },
-  verification: { tint: 'bg-status-verifySoft', label: 'Verification Inbox', labelColor: 'text-status-verify' },
-  dueSoon: { tint: 'bg-status-pendingSoft', label: 'Due Soon', labelColor: 'text-status-pending' },
-  contract: { tint: 'bg-status-upcomingSoft', label: 'Contract Renewal', labelColor: 'text-status-upcoming' },
+  overdue: {
+    label: 'Overdue',
+    icon: faTriangleExclamation,
+    accent: 'border-t-status-overdue',
+    glow: 'from-status-overdueSoft/70',
+    chip: 'bg-status-overdueSoft text-status-overdue',
+    text: 'text-status-overdue',
+  },
+  verification: {
+    label: 'Verification Inbox',
+    icon: faFileLines,
+    accent: 'border-t-status-verify',
+    glow: 'from-status-verifySoft/70',
+    chip: 'bg-status-verifySoft text-status-verify',
+    text: 'text-status-verify',
+  },
+  dueSoon: {
+    label: 'Due Soon',
+    icon: faClock,
+    accent: 'border-t-status-pending',
+    glow: 'from-status-pendingSoft/70',
+    chip: 'bg-status-pendingSoft text-status-pending',
+    text: 'text-status-pending',
+  },
+  contract: {
+    label: 'Contract Renewal',
+    icon: faFileSignature,
+    accent: 'border-t-status-upcoming',
+    glow: 'from-status-upcomingSoft/70',
+    chip: 'bg-status-upcomingSoft text-status-upcoming',
+    text: 'text-status-upcoming',
+  },
 };
+
+const DAY_MS = 86400000;
+const dayStart = (d) => {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x.getTime();
+};
+// Whole days from today to `date` (negative = in the past).
+const daysFromToday = (date) => Math.round((dayStart(date) - dayStart(new Date())) / DAY_MS);
+const shortDate = (date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+// The small "when" chip in the card's top-right corner.
+function whenChip(item) {
+  if (item.kind === 'overdue') {
+    const n = Math.max(1, Math.abs(daysFromToday(item.record.dueDate)));
+    return `${n} day${n === 1 ? '' : 's'} late`;
+  }
+  if (item.kind === 'dueSoon') {
+    const n = daysFromToday(item.record.dueDate);
+    return n <= 0 ? 'Due today' : n === 1 ? 'Tomorrow' : `In ${n} days`;
+  }
+  if (item.kind === 'contract') {
+    const n = daysFromToday(item.contract.endDate);
+    if (n < 0) return `Ended ${Math.abs(n)}d ago`;
+    return n === 0 ? 'Ends today' : `${n} day${n === 1 ? '' : 's'} left`;
+  }
+  return 'Needs review';
+}
+
+function AttentionCard({ item, onMarkPaid }) {
+  const style = ATTENTION_STYLE[item.kind];
+  const source = item.record || item.payment || item.contract;
+  const name = source.tenant?.fullName;
+  const unitName = source.unit?.name;
+
+  // What the big figure is, and the line under it.
+  let figureLabel;
+  let figure;
+  let detail;
+  if (item.kind === 'contract') {
+    figureLabel = 'Lease ends';
+    figure = shortDate(item.contract.endDate);
+    detail = 'Review the lease and renew it before it lapses';
+  } else if (item.kind === 'verification') {
+    figureLabel = 'Payment to confirm';
+    figure = peso(item.payment.actualAmount ?? item.payment.expectedAmount);
+    detail = [item.payment.method, item.payment.paymentDate && `paid ${shortDate(item.payment.paymentDate)}`]
+      .filter(Boolean)
+      .join(' \u00b7 ') || 'Submitted by your tenant';
+  } else {
+    figureLabel = item.kind === 'overdue' ? 'Amount overdue' : 'Amount due';
+    figure = peso(item.record.amountDue);
+    detail = `Due ${shortDate(item.record.dueDate)}`;
+  }
+
+  const actionBase = 'mt-auto flex h-9 w-full items-center justify-center gap-2 rounded-full text-xs font-semibold transition';
+
+  return (
+    <div
+      className={`group flex flex-col rounded-card border border-t-4 border-line bg-gradient-to-br ${style.glow} via-surface to-surface p-4 shadow-sm transition duration-150 hover:-translate-y-0.5 hover:shadow-card ${style.accent}`}
+    >
+      <div className="flex items-center gap-2.5">
+        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${style.chip}`}>
+          <FontAwesomeIcon icon={style.icon} className="h-3.5 w-3.5" />
+        </span>
+        <p className={`text-[11px] font-semibold uppercase tracking-wide ${style.text}`}>{style.label}</p>
+      </div>
+
+      <div className="mt-4 flex items-center gap-3">
+        <Avatar name={name} />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">{name}</p>
+          <p className="truncate text-xs text-ink/50">{unitName}</p>
+        </div>
+      </div>
+
+      <div className="mb-4 mt-4">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-ink/40">{figureLabel}</p>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <p className={`text-2xl font-bold tracking-tight ${style.text}`}>{figure}</p>
+          <span className="rounded-full bg-surface px-2.5 py-1 text-[10px] font-semibold text-ink/60 ring-1 ring-line">
+            {whenChip(item)}
+          </span>
+        </div>
+        <p className="mt-1 text-xs text-ink/50">{detail}</p>
+      </div>
+
+      {item.kind === 'overdue' && (
+        <button type="button" onClick={() => onMarkPaid(item.record)} className={`${actionBase} bg-success text-white hover:bg-success-dark`}>
+          <FontAwesomeIcon icon={faCheck} className="h-3 w-3" />
+          Mark Paid
+        </button>
+      )}
+      {item.kind === 'verification' && (
+        <Link to="/bills" className={`${actionBase} bg-status-verify text-white hover:opacity-90`}>
+          Review in Bills
+        </Link>
+      )}
+      {item.kind === 'dueSoon' && (
+        <Link to="/bills" className={`${actionBase} border border-line bg-surface text-ink/70 hover:bg-canvas`}>
+          View in Bills
+        </Link>
+      )}
+      {item.kind === 'contract' && (
+        <Link to="/tenants" className={`${actionBase} border border-line bg-surface text-ink/70 hover:bg-canvas`}>
+          Review &amp; renew
+        </Link>
+      )}
+    </div>
+  );
+}
 
 const DOT_FOR_STATUS = {
   paid: 'bg-status-paid',
@@ -192,13 +340,43 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period, selectedPropertyId]);
 
-  const handleMarkPaid = async (recordId) => {
-    await client.post(`/rent-records/${recordId}/mark-paid`, {});
-    // The dashboard's cached totals/checklist are now stale for every
-    // period/property combo, not just this one - drop them all so the
-    // next load (here, and elsewhere in the app) fetches fresh.
-    invalidate('/dashboard');
-    load();
+  // Mark Paid (here and in the checklist below) goes through the same "are
+  // you sure?" confirmation as the Bill Checklist.
+  const [payItems, setPayItems] = useState(null);
+  const [payBusy, setPayBusy] = useState(false);
+  const [payError, setPayError] = useState('');
+
+  const openPayConfirm = (record) => {
+    setPayError('');
+    setPayItems([
+      {
+        id: record._id,
+        billType: 'rent',
+        tenantName: record.tenant?.fullName,
+        unitName: record.unit?.name,
+        amount: record.amountDue,
+        dueDate: record.dueDate,
+        status: record.status,
+      },
+    ]);
+  };
+
+  const confirmMarkPaid = async () => {
+    setPayBusy(true);
+    setPayError('');
+    try {
+      await client.post(`/rent-records/${payItems[0].id}/mark-paid`, {});
+      // The dashboard's cached totals/checklist are now stale for every
+      // period/property combo, not just this one - drop them all so the
+      // next load (here, and elsewhere in the app) fetches fresh.
+      invalidate('/dashboard');
+      load();
+      setPayItems(null);
+    } catch (err) {
+      setPayError(err.response?.data?.error?.message || 'Could not mark this bill paid.');
+    } finally {
+      setPayBusy(false);
+    }
   };
 
   const weeks = useMemo(() => buildMonthGrid(cursor.getFullYear(), cursor.getMonth()), [cursor]);
@@ -429,6 +607,15 @@ export default function Dashboard() {
         periodLabel={cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
         onClose={() => setStatModal(null)}
       />
+      <ConfirmPaidModal
+        items={payItems}
+        amounts={{}}
+        onAmountChange={() => {}}
+        busy={payBusy}
+        error={payError}
+        onConfirm={confirmMarkPaid}
+        onClose={() => setPayItems(null)}
+      />
       <ReviewStatModal
         open={statModal === 'review'}
         payments={needsAttention.verification}
@@ -527,73 +714,29 @@ export default function Dashboard() {
       <BentoCard span={4}>
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">Needs Attention</h2>
-          <span className="rounded-full bg-status-overdueSoft px-2 py-0.5 text-xs font-semibold text-status-overdue">
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+              attentionItems.length === 0 ? 'bg-status-paidSoft text-status-paid' : 'bg-status-overdueSoft text-status-overdue'
+            }`}
+          >
             {attentionItems.length} Action{attentionItems.length === 1 ? '' : 's'}
           </span>
         </div>
         <p className="mt-1 text-xs text-ink/45">Immediate follow-ups required to ensure zero month-end arrears.</p>
 
         {attentionItems.length === 0 ? (
-          <p className="mt-4 rounded-lg bg-canvas px-3 py-4 text-center text-sm text-ink/50">
-            You're all caught up. Nothing needs attention right now.
-          </p>
+          <div className="mt-4 flex items-center justify-center gap-3 rounded-card bg-status-paidSoft/60 px-4 py-6 text-status-paid">
+            <FontAwesomeIcon icon={faCircleCheck} className="h-5 w-5" />
+            <div>
+              <p className="text-sm font-semibold">You&apos;re all caught up</p>
+              <p className="text-xs opacity-80">Nothing needs attention right now.</p>
+            </div>
+          </div>
         ) : (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {attentionItems.map((item, i) => {
-              const style = ATTENTION_STYLE[item.kind];
-              const name =
-                item.kind === 'overdue' ? item.record.tenant?.fullName :
-                item.kind === 'verification' ? item.payment.tenant?.fullName :
-                item.kind === 'dueSoon' ? item.record.tenant?.fullName :
-                item.contract.tenant?.fullName;
-              const unitName =
-                item.kind === 'overdue' ? item.record.unit?.name :
-                item.kind === 'verification' ? item.payment.unit?.name :
-                item.kind === 'dueSoon' ? item.record.unit?.name :
-                item.contract.unit?.name;
-              return (
-                <div key={i} className={`rounded-lg ${style.tint} p-3`}>
-                  <p className={`text-[10px] font-semibold uppercase tracking-wide ${style.labelColor}`}>{style.label}</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <Avatar name={name} size="sm" />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{name}</p>
-                      <p className="truncate text-xs text-ink/45">{unitName}</p>
-                    </div>
-                  </div>
-                  {item.kind === 'overdue' && (
-                    <>
-                      <p className="mt-2 text-sm font-semibold text-status-overdue">{peso(item.record.amountDue)}</p>
-                      <button onClick={() => handleMarkPaid(item.record._id)} className="mt-2 w-full rounded-full bg-success px-3 py-1.5 text-xs font-medium text-white hover:bg-success-dark">
-                        Mark Paid
-                      </button>
-                    </>
-                  )}
-                  {item.kind === 'verification' && (
-                    <>
-                      <p className="mt-2 text-sm font-semibold">{peso(item.payment.expectedAmount)}</p>
-                      <Link to="/bills" className="mt-2 block w-full rounded-full bg-status-verify px-3 py-1.5 text-center text-xs font-medium text-white">
-                        Review in Bills
-                      </Link>
-                    </>
-                  )}
-                  {item.kind === 'dueSoon' && (
-                    <>
-                      <p className="mt-2 text-sm font-semibold text-status-pending">{peso(item.record.amountDue)}</p>
-                      <div className="mt-2"><StatusBadge status="upcoming" /></div>
-                    </>
-                  )}
-                  {item.kind === 'contract' && (
-                    <>
-                      <p className="mt-2 text-xs text-ink/60">Expires {new Date(item.contract.endDate).toLocaleDateString()}</p>
-                      <Link to="/tenants" className="mt-2 block w-full rounded-full border border-line px-3 py-1.5 text-center text-xs font-medium">
-                        Review
-                      </Link>
-                    </>
-                  )}
-                </div>
-              );
-            })}
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {attentionItems.map((item, i) => (
+              <AttentionCard key={i} item={item} onMarkPaid={openPayConfirm} />
+            ))}
           </div>
         )}
       </BentoCard>
@@ -648,7 +791,7 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2">
                   <StatusBadge status={r.status} />
                   {r.status !== 'paid' && r.status !== 'verification' && (
-                    <button onClick={() => handleMarkPaid(r._id)} className="rounded-full border border-success px-3 py-1 text-xs font-medium text-success hover:bg-success-light">
+                    <button onClick={() => openPayConfirm(r)} className="rounded-full border border-success px-3 py-1 text-xs font-medium text-success hover:bg-success-light">
                       Mark Paid
                     </button>
                   )}
