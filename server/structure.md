@@ -20,6 +20,7 @@ server/
     │   ├── auth.js
     │   ├── errorHandler.js
     │   ├── rateLimit.js
+    │   ├── requestLogger.js
     │   └── validate.js
     ├── controllers/
     │   ├── authController.js

@@ -5,6 +5,7 @@ import hpp from 'hpp';
 
 import { supabase } from './config/supabase.js';
 import { apiLimiter } from './middleware/rateLimit.js';
+import requestLogger from './middleware/requestLogger.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
 import authRoutes from './routes/authRoutes.js';
@@ -43,6 +44,8 @@ function createApp() {
     }
     res.json({ ok: true, db: 'up' });
   });
+
+  app.use('/api', requestLogger);
 
   app.use(apiLimiter);
 

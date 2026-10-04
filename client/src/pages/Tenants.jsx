@@ -1,9 +1,11 @@
 import React, { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGear, faCircleInfo, faHourglassHalf, faMagnifyingGlass, faUsers, faWallet } from '@fortawesome/free-solid-svg-icons';
+import { faGear, faCircleInfo, faFileContract, faHourglassHalf, faMagnifyingGlass, faUsers, faWallet } from '@fortawesome/free-solid-svg-icons';
 import StatCard from '../components/StatCard.jsx';
 import TenantStatModals from '../components/TenantStatModals.jsx';
+import LeaseHistory from '../components/LeaseHistory.jsx';
+import AllLeasesModal from '../components/AllLeasesModal.jsx';
 import client from '../api/client.js';
 import BentoCard from '../components/BentoCard.jsx';
 import Avatar from '../components/Avatar.jsx';
@@ -498,6 +500,7 @@ export default function Tenants() {
   // Which summary card's breakdown is open: 'active' | 'rent' | 'expiring'.
   const [statModal, setStatModal] = useState(null);
   const [nudgeGuide, setNudgeGuide] = useState(false);
+  const [showAllLeases, setShowAllLeases] = useState(false);
   const guideRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -821,6 +824,14 @@ export default function Tenants() {
             }`}
           >
             + Add Tenant
+          </button>
+          <button
+            onClick={() => setShowAllLeases(true)}
+            aria-label="All leases"
+            title="All leases"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-canvas text-ink/60 transition-colors hover:bg-line"
+          >
+            <FontAwesomeIcon icon={faFileContract} />
           </button>
           <button
             onClick={() => setManageMode((m) => !m)}
@@ -1237,6 +1248,7 @@ export default function Tenants() {
                         </div>
                       )}
                     </div>
+                    <LeaseHistory key={`${t._id}:${t.contract._id}`} tenantId={t._id} />
                     <p className="text-[11px] text-ink/40">
                       Lease terms are locked in at signing and can only change through a renewal. To renew, turn on Manage mode and click Renew Lease on this tenant.
                     </p>
@@ -1337,6 +1349,7 @@ export default function Tenants() {
       )}
 
       <TenantStatModals kind={statModal} tenants={tenants} onClose={() => setStatModal(null)} />
+      <AllLeasesModal open={showAllLeases} tenants={tenants} onClose={() => setShowAllLeases(false)} />
     </div>
   );
 }

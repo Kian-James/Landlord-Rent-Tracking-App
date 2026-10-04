@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBell } from '@fortawesome/free-solid-svg-icons';
+import { faBell, faXmark } from '@fortawesome/free-solid-svg-icons';
 import client from '../api/client.js';
 
 const DESTINATION_BY_TYPE = {
@@ -80,6 +80,17 @@ export default function NotificationBell({ variant = 'default', className = '' }
     navigate(DESTINATION_BY_TYPE[n.type] || '/');
   };
 
+  const handleDismiss = async (e, n) => {
+    e.stopPropagation();
+    setNotifications((prev) => prev.filter((item) => item._id !== n._id));
+    if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
+    try {
+      await client.post(`/notifications/${n._id}/dismiss`, {});
+    } catch {
+      load();
+    }
+  };
+
   const handleMarkAllRead = async (e) => {
     e.stopPropagation();
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -138,20 +149,28 @@ export default function NotificationBell({ variant = 'default', className = '' }
             <p className="px-4 py-8 text-center text-sm text-ink/50">You're all caught up. No notifications right now.</p>
           ) : (
             notifications.map((n) => (
-              <button
+              <div
                 key={n._id}
-                onClick={() => handleNotificationClick(n)}
-                className={`block w-full border-b border-line px-4 py-3 text-left last:border-b-0 hover:bg-canvas ${
-                  n.read ? '' : 'bg-brand-soft/60'
-                }`}
+                className={`relative border-b border-line last:border-b-0 hover:bg-canvas ${n.read ? '' : 'bg-brand-soft/60'}`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <p className={`text-sm text-ink ${n.read ? 'font-medium' : 'font-semibold'}`}>{n.title}</p>
-                  {!n.read && <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />}
-                </div>
-                <p className="mt-1 whitespace-normal break-words text-[13px] leading-snug text-ink/75">{n.message}</p>
-                <p className="mt-1.5 text-[11px] text-ink/50">{timeAgo(n.createdAt)}</p>
-              </button>
+                <button onClick={() => handleNotificationClick(n)} className="block w-full px-4 py-3 pr-11 text-left">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className={`text-sm text-ink ${n.read ? 'font-medium' : 'font-semibold'}`}>{n.title}</p>
+                    {!n.read && <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />}
+                  </div>
+                  <p className="mt-1 whitespace-normal break-words text-[13px] leading-snug text-ink/75">{n.message}</p>
+                  <p className="mt-1.5 text-[11px] text-ink/50">{timeAgo(n.createdAt)}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleDismiss(e, n)}
+                  aria-label="Dismiss notification"
+                  title="Dismiss"
+                  className="absolute right-2 top-2.5 flex h-6 w-6 items-center justify-center rounded-full text-ink/35 hover:bg-line hover:text-ink"
+                >
+                  <FontAwesomeIcon icon={faXmark} className="h-3 w-3" />
+                </button>
+              </div>
             ))
           )}
         </div>

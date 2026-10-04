@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import client from '../api/client.js';
 import StatModal from './StatModal.jsx';
 import Avatar from './Avatar.jsx';
 import { BarRow, SectionTitle } from './breakdownParts.jsx';
@@ -140,10 +141,41 @@ function RentBody({ tenants }) {
   );
 }
 
+// Loaded from GET /contracts/expiring-soon (everything ending within 90 days,
+// plus active leases already past their end date). The modal only mounts while
+// open, so every open fetches fresh data. `tenants` supplies the property name
+// and keeps the list to currently active tenants, same as the card's count.
 function ExpiringBody({ tenants }) {
-  const withEnd = tenants
-    .filter((t) => t.status === 'active' && t.contract?.endDate)
-    .map((t) => ({ tenant: t, days: daysUntil(t.contract.endDate) }))
+  const [contracts, setContracts] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let ignore = false;
+    client
+      .get('/contracts/expiring-soon', { params: { days: 90 } })
+      .then(({ data }) => {
+        if (!ignore) setContracts(data.contracts);
+      })
+      .catch(() => {
+        if (!ignore) setError('Could not load expiring leases.');
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  if (error) return <p className="text-sm text-status-overdue">{error}</p>;
+  if (!contracts) return <p className="text-sm text-ink/50">Loading leases&hellip;</p>;
+
+  const tenantById = new Map(tenants.map((t) => [t._id, t]));
+  const withEnd = contracts
+    .map((c) => ({ contract: c, tenant: tenantById.get(c.tenant?._id) }))
+    .filter(({ tenant }) => tenant && tenant.status === 'active')
+    .map(({ contract, tenant }) => ({
+      // Row shape TenantRow expects, built from the lease so its rent and unit are what the contract says.
+      tenant: { _id: tenant._id, fullName: tenant.fullName, property: tenant.property, unit: contract.unit || tenant.unit, monthlyRent: contract.monthlyRent },
+      days: daysUntil(contract.endDate),
+    }))
     .sort((a, b) => a.days - b.days);
 
   const ended = withEnd.filter((x) => x.days < 0);

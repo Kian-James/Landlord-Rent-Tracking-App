@@ -8,6 +8,7 @@ import { faBolt, faBuilding, faGear, faKey, faMagnifyingGlass, faPlus, faWallet 
 import UnitCard from '../components/UnitCard.jsx';
 import StatCard from '../components/StatCard.jsx';
 import PropertyStatModals from '../components/PropertyStatModals.jsx';
+import PropertyDetailModal from '../components/PropertyDetailModal.jsx';
 
 function peso(amount) {
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(
@@ -232,6 +233,7 @@ export default function Properties() {
   const [editPropertyForm, setEditPropertyForm] = useState({ name: '', address: '', description: '' });
   const [unitFormFor, setUnitFormFor] = useState(null);
   const [unitForm, setUnitForm] = useState(emptyUnitForm());
+  const [detailPropertyId, setDetailPropertyId] = useState(null);
   const [editingUnitId, setEditingUnitId] = useState(null);
   const [editUnitForm, setEditUnitForm] = useState(emptyUnitForm());
   const [editUnitStatus, setEditUnitStatus] = useState('vacant');
@@ -431,6 +433,24 @@ export default function Properties() {
       await loadProperties();
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Could not update unit.');
+    }
+  };
+
+  const handleDeleteUnit = async (unit) => {
+    const isLastUnit = (unitsByProperty[unit.property] || []).length <= 1;
+    const confirmed = confirm(
+      `Delete "${unit.name}"? This can't be undone. Units with a current tenant can't be deleted \u2014 move the tenant out first.` +
+        (isLastUnit ? ' This is the last unit in this property, so the property will be left with no units.' : '')
+    );
+    if (!confirmed) return;
+    setError('');
+    try {
+      await client.delete(`/units/${unit._id}`);
+      setEditingUnitId(null);
+      await loadUnits(unit.property);
+      await loadProperties();
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Could not delete this unit.');
     }
   };
 
@@ -772,6 +792,12 @@ export default function Properties() {
                       />
                     </span>
                   </div>
+                  <button
+                    onClick={() => setDetailPropertyId(property._id)}
+                    className="rounded-full border border-line px-3 py-1 text-xs font-medium text-ink/60 hover:bg-canvas"
+                  >
+                    Details
+                  </button>
                   {manageMode && (
                     <button
                       onClick={() => startEditProperty(property)}
@@ -796,7 +822,7 @@ export default function Properties() {
                     {unit.status === 'occupied' ? (
                       <p className="text-[11px] text-ink/40">
                         This unit is currently occupied by {unit.currentTenant?.fullName || 'a tenant'}. Move them out
-                        from the Tenants page to change its status.
+                        from the Tenants page to change its status or delete it.
                       </p>
                     ) : (
                       <div>
@@ -812,17 +838,28 @@ export default function Properties() {
                         </select>
                       </div>
                     )}
-                    <div className="flex gap-2">
-                      <button type="submit" className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark">
-                        Save Changes
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelEditUnit}
-                        className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink/60"
-                      >
-                        Cancel
-                      </button>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex gap-2">
+                        <button type="submit" className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark">
+                          Save Changes
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEditUnit}
+                          className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink/60"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                      {unit.status !== 'occupied' && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteUnit(unit)}
+                          className="rounded-lg border border-status-overdue/30 px-4 py-2 text-sm font-medium text-status-overdue hover:bg-status-overdueSoft"
+                        >
+                          Delete Unit
+                        </button>
+                      )}
                     </div>
                   </form>
                 ) : (
@@ -872,6 +909,9 @@ export default function Properties() {
       )}
 
       <PropertyStatModals kind={statModal} properties={properties} unitsByProperty={unitsByProperty} onClose={() => setStatModal(null)} />
+      {detailPropertyId && (
+        <PropertyDetailModal key={detailPropertyId} propertyId={detailPropertyId} onClose={() => setDetailPropertyId(null)} />
+      )}
     </div>
   );
 }
