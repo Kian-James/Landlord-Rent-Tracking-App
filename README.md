@@ -1,5 +1,7 @@
 # Rentora - Landlord Rent Tracker
 
+[![Made with Claude AI](https://img.shields.io/badge/Made_with-Claude_AI-blue)](AI-USAGE.md)
+
 ## My project repository
 
 Public repository: https://github.com/Kian-James/Landlord-Rent-Tracking-App
@@ -130,7 +132,9 @@ The smoke test replaces Supabase's token check with a fake one, so it needs no r
 
 ## AI usage
 
-See [AI-USAGE.md](https://github.com/Kian-James/Landlord-Rent-Tracking-App/blob/main/AI-USAGE.md).
+This project was built with the assistance of [Claude](https://claude.ai), an AI assistant made by Anthropic. Claude was used to help with planning, writing and reviewing code, and documentation. I reviewed, tested and take responsibility for the final result.
+
+For details on what was AI-assisted and how, see [AI-USAGE.md](https://github.com/Kian-James/Landlord-Rent-Tracking-App/blob/main/AI-USAGE.md).
 
 ## Environment variables
 
@@ -203,7 +207,7 @@ The browser signs in with Supabase Auth and sends the resulting access token wit
 
 ## Author
 
-Kian James - add your link, course and section.
+Kian James -  https://github.com/Kian-James/Landlord-Rent-Tracking-App.git, CS-403
 
 ## Licence
 
