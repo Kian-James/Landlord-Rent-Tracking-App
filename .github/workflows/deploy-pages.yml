@@ -16,7 +16,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Frontend/**'
+      - 'client/**'
       - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
@@ -41,11 +41,11 @@ jobs:
         env:
           IS_PRIVATE: ${{ github.event.repository.private }}
         run: |
-          if [ -f Frontend/package.json ]; then
+          if [ -f client/package.json ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No Frontend/package.json, so there is nothing to build yet."
+            echo "::notice::No client/package.json, so there is nothing to build yet."
           fi
           if [ "$IS_PRIVATE" = "true" ]; then
             echo "::warning::This repository is private, so GitHub Pages may not publish it and the deploy step will be skipped."
@@ -56,15 +56,15 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: Frontend/package-lock.json
+          cache-dependency-path: client/package-lock.json
 
       - if: steps.check.outputs.ready == 'true'
-        working-directory: Frontend
+        working-directory: client
         run: npm ci
 
       - name: Build
         if: steps.check.outputs.ready == 'true'
-        working-directory: Frontend
+        working-directory: client
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
@@ -78,7 +78,7 @@ jobs:
       - if: steps.check.outputs.ready == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: Frontend/dist
+          path: client/dist
 
   deploy:
     needs: build
