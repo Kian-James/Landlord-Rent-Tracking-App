@@ -1,7 +1,23 @@
-name: Deploy to GitHub Pages
+name: Deploy Frontend to GitHub Pages
+
+# Turn Pages on once, by hand, or this runs green and publishes nothing:
+#   Settings > Pages > Build and deployment > Source: GitHub Actions
+#
+# Repository VARIABLES (not secrets), because everything below ends up inside the
+# built JavaScript, which anyone can read:
+#   Settings > Secrets and variables > Actions > Variables
+#     VITE_API_BASE_URL        https://your-backend.vercel.app   (no trailing slash, no /api)
+#     VITE_SUPABASE_URL        https://xxxxx.supabase.co
+#     VITE_SUPABASE_ANON_KEY   the anon/public key
+#
+# Never put the service-role key, a password or a database URL in a VITE_ variable.
+
 on:
   push:
     branches: [main]
+    paths:
+      - 'Frontend/**'
+      - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
 permissions:
@@ -16,29 +32,57 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: Frontend
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - id: check
+        env:
+          IS_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          if [ -f Frontend/package.json ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No Frontend/package.json, so there is nothing to build yet."
+          fi
+          if [ "$IS_PRIVATE" = "true" ]; then
+            echo "::warning::This repository is private, so GitHub Pages may not publish it and the deploy step will be skipped."
+          fi
+
+      - if: steps.check.outputs.ready == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: client/package-lock.json
-      - run: npm ci
-      - run: npm run build
+          cache-dependency-path: Frontend/package-lock.json
+
+      - if: steps.check.outputs.ready == 'true'
+        working-directory: Frontend
+        run: npm ci
+
+      - name: Build
+        if: steps.check.outputs.ready == 'true'
+        working-directory: Frontend
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
-          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH }}
-      - uses: actions/upload-pages-artifact@v3
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          test -n "$VITE_SUPABASE_URL" || { echo "::error::VITE_SUPABASE_URL is empty. Add it under Settings > Secrets and variables > Actions > Variables."; exit 1; }
+          test -n "$VITE_SUPABASE_ANON_KEY" || { echo "::error::VITE_SUPABASE_ANON_KEY is empty."; exit 1; }
+          npm run build
+
+      - if: steps.check.outputs.ready == 'true'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: Frontend/dist
 
   deploy:
     needs: build
+    if: needs.build.outputs.ready == 'true' && github.event.repository.private == false
     runs-on: ubuntu-latest
     environment:
       name: github-pages
