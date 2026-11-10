@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase.js';
 import { chunk, fetchAll, unwrap } from '../db/helper.js';
+import { coalesce, everyAtMost } from '../utils/coalesce.js';
 import { computeStatus } from './rentStatus.js';
 import { getPrepaidPeriods } from './prepaidPeriods.js';
 import { notifyMany } from './notifications.js';
@@ -18,17 +19,18 @@ async function generateRentRecordsForMonth(referenceDate = new Date(), landlordI
   const month = referenceDate.getMonth();
   const period = periodKey(referenceDate);
 
-  const tenants = await fetchAll(() => {
-    let q = supabase.from('tenants').select('*').in('status', ['active', 'notice_period']).order('id');
-    if (landlordId) q = q.eq('landlord_id', landlordId);
-    return q;
-  });
-
-  const activeContracts = await fetchAll(() => {
-    let q = supabase.from('contracts').select('*').eq('status', 'active').order('id');
-    if (landlordId) q = q.eq('landlord_id', landlordId);
-    return q;
-  });
+  const [tenants, activeContracts] = await Promise.all([
+    fetchAll(() => {
+      let q = supabase.from('tenants').select('*').in('status', ['active', 'notice_period']).order('id');
+      if (landlordId) q = q.eq('landlord_id', landlordId);
+      return q;
+    }),
+    fetchAll(() => {
+      let q = supabase.from('contracts').select('*').eq('status', 'active').order('id');
+      if (landlordId) q = q.eq('landlord_id', landlordId);
+      return q;
+    }),
+  ]);
   const contractByTenantId = new Map(activeContracts.map((c) => [c.tenant_id, c]));
 
   const candidates = tenants.map((tenant) => {
@@ -109,28 +111,43 @@ async function generateRentRecordsForMonth(referenceDate = new Date(), landlordI
   return { period, created: created.length, tenantsConsidered: tenants.length, coveredByAdvance: prepaid.length };
 }
 
+// A rent record's status depends only on today's date versus its due date. So only
+// records that are not paid, not already overdue and due within a few days can change
+// (overdue never goes back), and that is all we need to look at.
+const LOOKAHEAD_DAYS = 4;
+const OVERDUE_NOTICE_EVERY_MS = 10 * 60 * 1000;
+
 async function refreshRentStatuses(landlordId = null) {
+  // dashboard + rent list + bell may all ask at once: do it once
+  return landlordId
+    ? coalesce(`rent-refresh:${landlordId}`, () => runRentRefresh(landlordId))
+    : runRentRefresh(null);
+}
+
+async function runRentRefresh(landlordId) {
+  const cutoff = new Date(Date.now() + LOOKAHEAD_DAYS * 86400000).toISOString();
   const records = await fetchAll(() => {
-    let q = supabase.from('rent_records').select('*').neq('status', 'paid').order('id');
+    let q = supabase
+      .from('rent_records')
+      .select('id, landlord_id, period, due_date, status')
+      .neq('status', 'paid')
+      .neq('status', 'overdue')
+      .lte('due_date', cutoff)
+      .order('id');
     if (landlordId) q = q.eq('landlord_id', landlordId);
     return q;
   });
-  if (records.length === 0) return { checked: 0, updated: 0 };
 
   const idsByNextStatus = new Map();
   const toNotify = [];
 
   for (const record of records) {
     const nextStatus = computeStatus({ dueDate: record.due_date, status: record.status });
-
-    if (nextStatus !== record.status) {
-      if (!idsByNextStatus.has(nextStatus)) idsByNextStatus.set(nextStatus, []);
-      idsByNextStatus.get(nextStatus).push(record.id);
-      record.status = nextStatus;
-      toNotify.push(record);
-    } else if (nextStatus === 'overdue') {
-      toNotify.push(record);
-    }
+    if (nextStatus === record.status) continue;
+    if (!idsByNextStatus.has(nextStatus)) idsByNextStatus.set(nextStatus, []);
+    idsByNextStatus.get(nextStatus).push(record.id);
+    record.status = nextStatus;
+    toNotify.push(record);
   }
 
   let updated = 0;
@@ -142,8 +159,28 @@ async function refreshRentStatuses(landlordId = null) {
   }
 
   await notifyMany(toNotify.map(statusNotificationFor).filter(Boolean));
+  await notifyOverdue(landlordId);
 
   return { checked: records.length, updated };
+}
+
+// "Rent overdue" is re-sent once a day for every overdue record (de-duplicated by day),
+// so this only needs to run now and then, not on every page view.
+async function notifyOverdue(landlordId) {
+  const send = async () => {
+    const overdue = await fetchAll(() => {
+      let q = supabase
+        .from('rent_records')
+        .select('id, landlord_id, period, due_date, status')
+        .eq('status', 'overdue')
+        .order('id');
+      if (landlordId) q = q.eq('landlord_id', landlordId);
+      return q;
+    });
+    await notifyMany(overdue.map(statusNotificationFor).filter(Boolean));
+  };
+  if (!landlordId) return send(); // the daily job always runs it
+  return everyAtMost(`overdue-notices:${landlordId}`, OVERDUE_NOTICE_EVERY_MS, send);
 }
 
 function statusNotificationFor(record) {

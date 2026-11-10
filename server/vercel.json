@@ -1,5 +1,14 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/api" }
-  ]
+    {
+      "source": "/(.*)",
+      "destination": "/api"
+    }
+  ],
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "{assets/**,node_modules/pdfjs-dist/standard_fonts/**}",
+      "maxDuration": 30
+    }
+  }
 }

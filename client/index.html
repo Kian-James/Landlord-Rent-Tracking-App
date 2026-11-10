@@ -8,12 +8,22 @@
     <meta name="description" content="Track properties, tenants, monthly rent and utility bills in one place." />
     <link rel="icon" type="image/svg+xml" href="/icons/rentora.svg" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Loaded without blocking the first paint; text shows in a system font until the fonts arrive. -->
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
   </head>
   <body>
     <div id="root"></div>

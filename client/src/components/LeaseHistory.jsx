@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import client from '../api/client.js';
 import { Skeleton } from './Skeleton.jsx';
+import ContractPdfButton from './ContractPdfButton.jsx';
 import { peso } from '../lib/breakdown.js';
 import { fmtLeaseDate, leaseStatus } from '../lib/leaseStatus.js';
 
@@ -50,11 +51,14 @@ export default function LeaseHistory({ tenantId }) {
                     {c.durationMonths} month(s) &middot; Advance {peso(c.advanceAmount)} &middot; Deposit {peso(c.depositAmount)}
                   </span>
                 </span>
-                <span className="shrink-0 text-right">
-                  <span className="block font-semibold">{peso(c.monthlyRent)}/mo</span>
-                  <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.cls}`}>
-                    {s.label}
+                <span className="flex shrink-0 items-center gap-3">
+                  <span className="text-right">
+                    <span className="block font-semibold">{peso(c.monthlyRent)}/mo</span>
+                    <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.cls}`}>
+                      {s.label}
+                    </span>
                   </span>
+                  <ContractPdfButton variant="icon" contractId={c._id} />
                 </span>
               </li>
             );

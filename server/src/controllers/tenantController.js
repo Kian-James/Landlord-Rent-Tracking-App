@@ -4,6 +4,15 @@ import { supabase } from '../config/supabase.js';
 import { toApi } from '../db/mapper.js';
 import { escapeLike, findOwnedOrThrow, queryString, text, unwrap, updateOwned } from '../db/helper.js';
 import { buildFund } from '../utils/moveInFunds.js';
+import { hasColumn, MIGRATION_HINT } from '../services/schemaFeatures.js';
+
+// The tenant address column exists only after the contract-PDF migration. Until then an empty
+// address is ignored (so nothing else breaks) and a real one gets a clear message.
+async function addressColumnReady(address) {
+  const ok = await hasColumn('tenants', 'address');
+  if (!ok && String(address ?? '').trim()) throw new ApiError(503, MIGRATION_HINT);
+  return ok;
+}
 
 const list = asyncHandler(async (req, res) => {
   let query = supabase
@@ -50,11 +59,13 @@ const getOne = asyncHandler(async (req, res) => {
 
 const create = asyncHandler(async (req, res) => {
   const {
-    unitId, fullName, email, phone, monthlyRent, rentDueDay,
+    unitId, fullName, email, phone, address, monthlyRent, rentDueDay,
     leaseStartDate, leaseEndDate, contractDurationMonths, notes,
     advanceMonths, advanceAmount, advanceMethod, advanceReferenceNumber,
     depositMonths, depositAmount, depositMethod, depositReferenceNumber,
   } = req.body;
+  const addressOk = await addressColumnReady(address);
+  if (addressOk && text(address).length < 5) throw new ApiError(400, "Enter the tenant's full address. It is printed on their contract.");
 
   const unit = await findOwnedOrThrow('units', unitId, req.landlordId);
   if (unit.status === 'occupied') {
@@ -74,6 +85,7 @@ const create = asyncHandler(async (req, res) => {
         full_name: text(fullName),
         email: text(email).toLowerCase(),
         phone: text(phone),
+        ...(addressOk ? { address: text(address) } : {}),
         monthly_rent: Number(monthlyRent ?? unit.monthly_rent),
         rent_due_day: Number(rentDueDay ?? 1),
         lease_start_date: startIso,
@@ -133,12 +145,15 @@ const create = asyncHandler(async (req, res) => {
 
 const update = asyncHandler(async (req, res) => {
   const tenant = await findOwnedOrThrow('tenants', req.params.id, req.landlordId);
-  const { fullName, email, phone, monthlyRent, rentDueDay, notes, status } = req.body;
+  const { fullName, email, phone, address, monthlyRent, rentDueDay, notes, status } = req.body;
+  const addressOk = await addressColumnReady(address);
+  if (address !== undefined && addressOk && text(address).length < 5) throw new ApiError(400, "Enter the tenant's full address. It is printed on their contract.");
 
   const patch = {};
   if (fullName !== undefined) patch.full_name = text(fullName);
   if (email !== undefined) patch.email = text(email).toLowerCase();
   if (phone !== undefined) patch.phone = text(phone);
+  if (address !== undefined && addressOk) patch.address = text(address);
   if (monthlyRent !== undefined) patch.monthly_rent = Number(monthlyRent);
   if (rentDueDay !== undefined) patch.rent_due_day = Number(rentDueDay);
   if (notes !== undefined) patch.notes = text(notes);

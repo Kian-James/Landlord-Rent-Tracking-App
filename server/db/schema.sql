@@ -11,6 +11,7 @@ create table public.landlords (
   id text primary key,
   name text not null check (char_length(name) between 1 and 120),
   email text not null unique check (email = lower(email)),
+  address text not null default '' check (char_length(address) <= 300),
   gmail_integration jsonb not null
     default '{"connected": false, "gmailAddress": null, "scopes": []}'::jsonb,
   notification_preferences jsonb not null
@@ -75,6 +76,7 @@ create table public.tenants (
   full_name text not null check (char_length(full_name) <= 160),
   email text not null default '',
   phone text not null default '',
+  address text not null default '' check (char_length(address) <= 300),
   monthly_rent numeric(12, 2) not null check (monthly_rent >= 0),
   rent_due_day int not null default 1 check (rent_due_day between 1 and 31),
   lease_start_date timestamptz not null,
@@ -259,3 +261,22 @@ alter table public.payments enable row level security;
 alter table public.utility_bill_records enable row level security;
 alter table public.notifications enable row level security;
 alter table public.audit_logs enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Contract templates: a landlord's uploaded contract PDF, plus which parts of
+-- it change per tenant. No row = the landlord uses the built-in starter contract.
+-- ---------------------------------------------------------------------------
+create table public.contract_templates (
+  landlord_id text primary key references public.landlords(id) on delete cascade,
+  pdf_base64 text,
+  model jsonb,
+  slots jsonb not null default '[]'::jsonb,
+  source_filename text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create trigger contract_templates_updated before update on public.contract_templates
+  for each row execute function public.set_updated_at();
+
+alter table public.contract_templates enable row level security;

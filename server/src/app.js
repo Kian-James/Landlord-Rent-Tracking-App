@@ -13,6 +13,7 @@ import propertyRoutes from './routes/propertyRoutes.js';
 import unitRoutes from './routes/unitRoutes.js';
 import tenantRoutes from './routes/tenantRoutes.js';
 import contractRoutes from './routes/contractRoutes.js';
+import contractTemplateRoutes from './routes/contractTemplateRoutes.js';
 import rentRoutes from './routes/rentRoutes.js';
 import utilityBillRoutes from './routes/utilityBillRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
@@ -30,7 +31,7 @@ function createApp() {
   app.set('trust proxy', 1);
 
   app.use(helmet());
-  app.use(cors({ origin: allowedOrigins }));
+  app.use(cors({ origin: allowedOrigins, exposedHeaders: ['Content-Disposition', 'X-Missing-Fields', 'X-Contract-Warnings'] }));
   app.use(express.json({ limit: '1mb' }));
   app.use(hpp());
 
@@ -54,6 +55,7 @@ function createApp() {
   app.use('/api/units', unitRoutes);
   app.use('/api/tenants', tenantRoutes);
   app.use('/api/contracts', contractRoutes);
+  app.use('/api/contract-template', contractTemplateRoutes);
   app.use('/api/rent-records', rentRoutes);
   app.use('/api/utility-bills', utilityBillRoutes);
   app.use('/api/notifications', notificationRoutes);

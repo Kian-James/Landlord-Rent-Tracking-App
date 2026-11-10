@@ -20,6 +20,7 @@ router.post(
     body('leaseEndDate').isISO8601().withMessage('A valid lease end date is required.'),
     body('email').optional({ values: 'falsy' }).isEmail().withMessage('Email must be valid.'),
     body('phone').optional({ values: 'falsy' }).matches(/^09\d{9}$/).withMessage('Phone number must be 11 digits and start with 09.'),
+    body('address').optional().isLength({ max: 300 }).withMessage('Address must be 300 characters or fewer.'),
     body('advanceMonths').optional().isFloat({ min: 0 }).withMessage('Advance months must be 0 or more.'),
     body('advanceAmount').optional({ values: 'falsy' }).isFloat({ min: 0 }).withMessage('Advance amount must be 0 or more.'),
     body('depositMonths').optional().isFloat({ min: 0 }).withMessage('Deposit months must be 0 or more.'),
@@ -34,6 +35,7 @@ router.patch(
   [
     body('email').optional({ values: 'falsy' }).isEmail().withMessage('Email must be valid.'),
     body('phone').optional({ values: 'falsy' }).matches(/^09\d{9}$/).withMessage('Phone number must be 11 digits and start with 09.'),
+    body('address').optional().isLength({ max: 300 }).withMessage('Address must be 300 characters or fewer.'),
     body('status').optional().isIn(['active', 'notice_period', 'vacated', 'inactive']).withMessage('Invalid tenant status.'),
   ],
   validate,

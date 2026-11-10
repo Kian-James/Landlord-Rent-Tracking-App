@@ -12,10 +12,12 @@ router.use(requireAuth);
 
 router.patch(
   '/profile',
-  [body('name').trim().isLength({ min: 1, max: 120 })],
+  [body('name').trim().isLength({ min: 1, max: 120 }), body('address').optional().trim().isLength({ min: 5, max: 300 }).withMessage('Enter your full address (at least 5 characters). It is printed on your contracts.')],
   validate,
   asyncHandler(async (req, res) => {
-    const landlord = await updateLandlord(req.landlordId, { name: req.body.name });
+    const patch = { name: req.body.name };
+    if (req.body.address !== undefined) patch.address = req.body.address;
+    const landlord = await updateLandlord(req.landlordId, patch);
     res.json({ landlord: toApi(landlord) });
   })
 );

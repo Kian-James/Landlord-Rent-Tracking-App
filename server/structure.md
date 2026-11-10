@@ -25,6 +25,8 @@ server/
     ├── controllers/
     │   ├── authController.js
     │   ├── contractController.js
+    │   ├── contractPdfController.js        (one-click contract PDF download)
+    │   ├── contractTemplateController.js   (upload / review / save the contract template)
     │   ├── dashboardController.js
     │   ├── notificationController.js
     │   ├── propertyController.js
@@ -45,6 +47,13 @@ server/
     │   └── utilityBillRoutes.js
     ├── services/
     │   ├── audit.js
+    │   ├── contractDetect.js       (finds a lease's values inside an uploaded contract)
+    │   ├── contractFields.js       (field catalog + formatting: rent in words, dates...)
+    │   ├── contractFonts.js        (font mapping + text measuring)
+    │   ├── contractLayout.js       (reads a PDF's text positions -> paragraphs)
+    │   ├── contractPdfStream.js    (PDF content-stream reading: text removal, colours)
+    │   ├── contractStamp.js        (draws the filled-in contract on the original PDF)
+    │   ├── contractTemplates.js    (template storage, slot validation, lease loading)
     │   ├── landlords.js
     │   ├── notifications.js
     │   ├── prepaidPeriods.js
@@ -58,3 +67,9 @@ server/
         ├── ApiError.js
         ├── asyncHandler.js
         └── moveInFunds.js
+
+Contract PDF feature (also see CONTRACT_PDF_README.md):
+    assets/fonts/      Liberation Sans/Serif/Mono + DejaVu (redrawing text)
+    assets/starter/    the built-in starter contract (contract.pdf + model.json + slots.json)
+    scripts/buildStarterTemplate.js   rebuilds the starter's model/slots from contract.pdf
+    db/migrations/002_contract_pdf_templates.sql

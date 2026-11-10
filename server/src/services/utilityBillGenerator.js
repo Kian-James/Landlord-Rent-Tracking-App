@@ -59,8 +59,17 @@ async function generateUtilityBillsForMonth(referenceDate = new Date(), landlord
 }
 
 async function refreshUtilityBillStatuses(landlordId = null) {
+  // Only bills that are unpaid, not yet overdue and already due can change status (and only
+  // those get a notification), so don't read every old overdue bill each time.
+  const cutoff = new Date(Date.now() + 86400000).toISOString();
   const records = await fetchAll(() => {
-    let q = supabase.from('utility_bill_records').select('*, unit:units!unit_id(name)').neq('status', 'paid').order('id');
+    let q = supabase
+      .from('utility_bill_records')
+      .select('id, landlord_id, type, due_date, status, unit:units!unit_id(name)')
+      .neq('status', 'paid')
+      .neq('status', 'overdue')
+      .lte('due_date', cutoff)
+      .order('id');
     if (landlordId) q = q.eq('landlord_id', landlordId);
     return q;
   });
