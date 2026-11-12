@@ -1,49 +1,35 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faFilter,
-  faGear,
-  faShieldHalved,
-  faTriangleExclamation,
-  faWallet,
-} from "@fortawesome/free-solid-svg-icons";
-import StatCard from "../components/StatCard.jsx";
-import client from "../api/client.js";
-import ToolbarSearch from "../components/ToolbarSearch.jsx";
-import BentoCard from "../components/BentoCard.jsx";
-import StatusBadge from "../components/StatusBadge.jsx";
-import Avatar from "../components/Avatar.jsx";
-import ConfirmPaidModal from "../components/ConfirmPaidModal.jsx";
-import BillBreakdownModal from "../components/BillBreakdownModal.jsx";
-import FilterDropdown from "../components/FilterDropdown.jsx";
-import {
-  Skeleton,
-  SkeletonText,
-  SkeletonCircle,
-} from "../components/Skeleton.jsx";
-import { BILL_TYPE_META, BillIcon } from "../lib/billIcons.jsx";
+import React, { useEffect, useMemo, useState } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faFilter, faGear, faShieldHalved, faTriangleExclamation, faWallet } from '@fortawesome/free-solid-svg-icons';
+import StatCard from '../components/StatCard.jsx';
+import client from '../api/client.js';
+import ToolbarSearch from '../components/ToolbarSearch.jsx';
+import BentoCard from '../components/BentoCard.jsx';
+import StatusBadge from '../components/StatusBadge.jsx';
+import Avatar from '../components/Avatar.jsx';
+import ConfirmPaidModal from '../components/ConfirmPaidModal.jsx';
+import BillBreakdownModal from '../components/BillBreakdownModal.jsx';
+import FilterDropdown from '../components/FilterDropdown.jsx';
+import { Skeleton, SkeletonText, SkeletonCircle } from '../components/Skeleton.jsx';
+import { BILL_TYPE_META, BillIcon } from '../lib/billIcons.jsx';
 
 function peso(amount) {
-  if (amount === null || amount === undefined) return "Amount not set";
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-    maximumFractionDigits: 0,
-  }).format(amount);
+  if (amount === null || amount === undefined) return 'Amount not set';
+  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(amount);
 }
 
-const TYPE_FILTERS = ["all", "rent", "electricity", "water", "wifi"];
-const STATUS_FILTERS = ["all", "paid", "pending", "overdue", "upcoming"];
+const TYPE_FILTERS = ['all', 'rent', 'electricity', 'water', 'wifi'];
+const STATUS_FILTERS = ['all', 'paid', 'pending', 'overdue', 'upcoming'];
 
 // Fixed per-type color, used only for the Total Obligations breakdown bar
 // below - unlike ROW_STYLE/STATUS_CHIP_STYLE (which color by status), this
 // is the one place bill *type* itself gets a color identity, so the four
 // categories are distinguishable in a single stacked bar.
 const TYPE_COLOR = {
-  rent: { bar: "bg-primary", dot: "bg-primary" },
-  electricity: { bar: "bg-status-pending", dot: "bg-status-pending" },
-  water: { bar: "bg-status-upcoming", dot: "bg-status-upcoming" },
-  wifi: { bar: "bg-status-verify", dot: "bg-status-verify" },
+  rent: { bar: 'bg-primary', dot: 'bg-primary' },
+  electricity: { bar: 'bg-status-pending', dot: 'bg-status-pending' },
+  water: { bar: 'bg-status-upcoming', dot: 'bg-status-upcoming' },
+  wifi: { bar: 'bg-status-verify', dot: 'bg-status-verify' },
 };
 
 // Each status chip always wears its own status color (a light tint at
@@ -51,34 +37,19 @@ const TYPE_COLOR = {
 // plain gray text - so the toolbar itself previews what's behind each
 // filter, not just which one happens to be active right now.
 const STATUS_CHIP_STYLE = {
-  all: {
-    soft: "bg-canvas text-ink/50 hover:bg-line",
-    active: "bg-primary text-white",
-  },
-  paid: {
-    soft: "bg-status-paidSoft text-status-paid",
-    active: "bg-status-paid text-white",
-  },
-  pending: {
-    soft: "bg-status-pendingSoft text-status-pending",
-    active: "bg-status-pending text-white",
-  },
-  overdue: {
-    soft: "bg-status-overdueSoft text-status-overdue",
-    active: "bg-status-overdue text-white",
-  },
-  upcoming: {
-    soft: "bg-status-upcomingSoft text-status-upcoming",
-    active: "bg-status-upcoming text-white",
-  },
+  all: { soft: 'bg-canvas text-ink/50 hover:bg-line', active: 'bg-primary text-white' },
+  paid: { soft: 'bg-status-paidSoft text-status-paid', active: 'bg-status-paid text-white' },
+  pending: { soft: 'bg-status-pendingSoft text-status-pending', active: 'bg-status-pending text-white' },
+  overdue: { soft: 'bg-status-overdueSoft text-status-overdue', active: 'bg-status-overdue text-white' },
+  upcoming: { soft: 'bg-status-upcomingSoft text-status-upcoming', active: 'bg-status-upcoming text-white' },
 };
 
 // Small status dot shown on inactive segments of the toolbar's status bar.
 const STATUS_DOT = {
-  paid: "bg-status-paid",
-  pending: "bg-status-pending",
-  overdue: "bg-status-overdue",
-  upcoming: "bg-status-upcoming",
+  paid: 'bg-status-paid',
+  pending: 'bg-status-pending',
+  overdue: 'bg-status-overdue',
+  upcoming: 'bg-status-upcoming',
 };
 
 // Per-row visual treatment keyed by status - the same color that drives the
@@ -89,34 +60,10 @@ const STATUS_DOT = {
 // (no accent, no tint, no action) so cleared bills recede and the eye is
 // pulled toward what's still outstanding.
 const ROW_STYLE = {
-  paid: {
-    edge: "border-l-transparent",
-    tint: "",
-    chipBg: "bg-line",
-    chipText: "text-ink/40",
-    muted: true,
-  },
-  pending: {
-    edge: "border-l-status-pending",
-    tint: "bg-status-pendingSoft/30",
-    chipBg: "bg-status-pendingSoft",
-    chipText: "text-status-pending",
-    muted: false,
-  },
-  overdue: {
-    edge: "border-l-status-overdue",
-    tint: "bg-status-overdueSoft/30",
-    chipBg: "bg-status-overdueSoft",
-    chipText: "text-status-overdue",
-    muted: false,
-  },
-  upcoming: {
-    edge: "border-l-status-upcoming",
-    tint: "",
-    chipBg: "bg-status-upcomingSoft",
-    chipText: "text-status-upcoming",
-    muted: false,
-  },
+  paid: { edge: 'border-l-transparent', tint: '', chipBg: 'bg-line', chipText: 'text-ink/40', muted: true },
+  pending: { edge: 'border-l-status-pending', tint: 'bg-status-pendingSoft/30', chipBg: 'bg-status-pendingSoft', chipText: 'text-status-pending', muted: false },
+  overdue: { edge: 'border-l-status-overdue', tint: 'bg-status-overdueSoft/30', chipBg: 'bg-status-overdueSoft', chipText: 'text-status-overdue', muted: false },
+  upcoming: { edge: 'border-l-status-upcoming', tint: '', chipBg: 'bg-status-upcomingSoft', chipText: 'text-status-upcoming', muted: false },
 };
 
 // Normalizes a RentRecord and a UtilityBillRecord into one common shape so
@@ -127,12 +74,12 @@ const ROW_STYLE = {
 function normalizeRent(r) {
   return {
     id: r._id,
-    billType: "rent",
+    billType: 'rent',
     tenantName: r.tenant?.fullName,
     unitName: r.unit?.name,
     amount: r.amountDue,
     dueDate: r.dueDate,
-    status: r.status === "verification" ? "pending" : r.status, // checklist collapses "awaiting verification" into pending visually
+    status: r.status === 'verification' ? 'pending' : r.status, // checklist collapses "awaiting verification" into pending visually
     raw: r,
   };
 }
@@ -147,8 +94,7 @@ function normalizeUtility(b) {
     // (possibly never-set) expected amount - a utility bill with no
     // amount configured still has a real paidAmount once the landlord
     // enters it at mark-paid time, and that's the number worth showing.
-    amount:
-      b.status === "paid" && b.paidAmount != null ? b.paidAmount : b.amountDue,
+    amount: b.status === 'paid' && b.paidAmount != null ? b.paidAmount : b.amountDue,
     dueDate: b.dueDate,
     status: b.status,
     raw: b,
@@ -157,27 +103,27 @@ function normalizeUtility(b) {
 
 // "All" view is grouped by urgency instead of one long due-date list, so the
 // things that need action sit at the top and settled bills sit at the bottom.
-const GROUP_ORDER = ["overdue", "pending", "upcoming", "paid"];
+const GROUP_ORDER = ['overdue', 'pending', 'upcoming', 'paid'];
 const GROUP_META = {
-  overdue: { label: "Overdue", hint: "Past due - collect these first" },
-  pending: { label: "Pending", hint: "Due soon" },
-  upcoming: { label: "Upcoming", hint: "Not due yet" },
-  paid: { label: "Paid", hint: "Settled" },
+  overdue: { label: 'Overdue', hint: 'Past due - collect these first' },
+  pending: { label: 'Pending', hint: 'Due soon' },
+  upcoming: { label: 'Upcoming', hint: 'Not due yet' },
+  paid: { label: 'Paid', hint: 'Settled' },
 };
 
 // Inside a group: overdue = longest overdue first, open bills = soonest due
 // first, paid = most recently due first (old history sinks to the bottom).
 function sortWithinStatus(status, items) {
   const byDue = (a, b) => new Date(a.dueDate) - new Date(b.dueDate);
-  return [...items].sort(status === "paid" ? (a, b) => byDue(b, a) : byDue);
+  return [...items].sort(status === 'paid' ? (a, b) => byDue(b, a) : byDue);
 }
 
 export default function BillChecklist() {
   const [rentRecords, setRentRecords] = useState([]);
   const [utilityRecords, setUtilityRecords] = useState([]);
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
   // Marking paid always goes through one confirmation modal. `confirmItems`
@@ -187,8 +133,8 @@ export default function BillChecklist() {
   const [confirmAmounts, setConfirmAmounts] = useState({});
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [confirmDone, setConfirmDone] = useState(0); // bills already marked paid in this confirm session (survives retries)
-  const [confirmError, setConfirmError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [confirmError, setConfirmError] = useState('');
+  const [notice, setNotice] = useState('');
 
   // Bulk selection: keys of the form "rent:<id>" / "electricity:<id>". Only
   // unpaid, currently visible bills ever count as selected (see selectedItems).
@@ -212,14 +158,8 @@ export default function BillChecklist() {
   // this fires on every page load), so it's safe to call every time this
   // page opens rather than making the landlord take an extra action first.
   const load = async () => {
-    await Promise.all([
-      client.post("/rent-records/generate", {}),
-      client.post("/utility-bills/generate", {}),
-    ]);
-    const [rentRes, utilityRes] = await Promise.all([
-      client.get("/rent-records"),
-      client.get("/utility-bills"),
-    ]);
+    await Promise.all([client.post('/rent-records/generate', {}), client.post('/utility-bills/generate', {})]);
+    const [rentRes, utilityRes] = await Promise.all([client.get('/rent-records'), client.get('/utility-bills')]);
     setRentRecords(rentRes.data.records);
     setUtilityRecords(utilityRes.data.records);
     setLoading(false);
@@ -234,32 +174,28 @@ export default function BillChecklist() {
   const openConfirm = (items) => {
     setConfirmItems(items);
     setConfirmAmounts({});
-    setConfirmError("");
+    setConfirmError('');
     setConfirmDone(0);
   };
 
   const closeConfirm = () => {
     setConfirmItems(null);
-    setConfirmError("");
+    setConfirmError('');
   };
 
   // One request per bill. Utility bills with no configured amount can carry an
   // optional "amount actually paid", so the record reflects reality instead of
   // permanently showing "Amount not set".
   const markPaidRequest = (item) => {
-    if (item.billType === "rent")
-      return client.post(`/rent-records/${item.id}/mark-paid`, {});
+    if (item.billType === 'rent') return client.post(`/rent-records/${item.id}/mark-paid`, {});
     const typed = confirmAmounts[itemKey(item)];
     const unset = item.amount === null || item.amount === undefined;
-    return client.post(
-      `/utility-bills/${item.id}/mark-paid`,
-      unset && typed ? { paidAmount: Number(typed) } : {},
-    );
+    return client.post(`/utility-bills/${item.id}/mark-paid`, unset && typed ? { paidAmount: Number(typed) } : {});
   };
 
   const confirmPaid = async () => {
     setConfirmBusy(true);
-    setConfirmError("");
+    setConfirmError('');
 
     // Sequential, so one failure never hides the others' results and we stay
     // well inside the API rate limit.
@@ -269,13 +205,7 @@ export default function BillChecklist() {
         await markPaidRequest(item);
         results.push({ item, ok: true });
       } catch (err) {
-        results.push({
-          item,
-          ok: false,
-          message:
-            err.response?.data?.error?.message ||
-            "Could not mark this bill paid.",
-        });
+        results.push({ item, ok: false, message: err.response?.data?.error?.message || 'Could not mark this bill paid.' });
       }
     }
     await load();
@@ -291,18 +221,14 @@ export default function BillChecklist() {
     const totalDone = confirmDone + done.length;
     if (failed.length === 0) {
       closeConfirm();
-      setNotice(
-        totalDone === 1
-          ? "Marked 1 bill as paid."
-          : `Marked ${totalDone} bills as paid.`,
-      );
-      setTimeout(() => setNotice(""), 6000);
+      setNotice(totalDone === 1 ? 'Marked 1 bill as paid.' : `Marked ${totalDone} bills as paid.`);
+      setTimeout(() => setNotice(''), 6000);
     } else {
       // Keep the modal open on just the ones that failed so they can retry.
       setConfirmDone(totalDone);
       setConfirmItems(failed.map((r) => r.item));
       setConfirmError(
-        `${done.length > 0 ? `${done.length} marked paid. ` : ""}${failed.length} could not be marked paid: ${failed[0].message}`,
+        `${done.length > 0 ? `${done.length} marked paid. ` : ''}${failed.length} could not be marked paid: ${failed[0].message}`
       );
     }
     setConfirmBusy(false);
@@ -310,34 +236,22 @@ export default function BillChecklist() {
 
   const handleMarkUnpaid = async (item) => {
     const label = BILL_TYPE_META[item.billType].label.toLowerCase();
-    if (
-      !confirm(
-        `Mark this ${label} bill as unpaid? This can be re-marked paid again later if needed.`,
-      )
-    )
-      return;
-    const path =
-      item.billType === "rent"
-        ? `/rent-records/${item.id}/mark-unpaid`
-        : `/utility-bills/${item.id}/mark-unpaid`;
+    if (!confirm(`Mark this ${label} bill as unpaid? This can be re-marked paid again later if needed.`)) return;
+    const path = item.billType === 'rent' ? `/rent-records/${item.id}/mark-unpaid` : `/utility-bills/${item.id}/mark-unpaid`;
     await client.post(path, {});
     await load();
   };
 
   const combined = useMemo(() => {
-    const items = [
-      ...rentRecords.map(normalizeRent),
-      ...utilityRecords.map(normalizeUtility),
-    ];
+    const items = [...rentRecords.map(normalizeRent), ...utilityRecords.map(normalizeUtility)];
     return items.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
   }, [rentRecords, utilityRecords]);
 
   const filtered = combined.filter((item) => {
-    if (typeFilter !== "all" && item.billType !== typeFilter) return false;
-    if (statusFilter !== "all" && item.status !== statusFilter) return false;
+    if (typeFilter !== 'all' && item.billType !== typeFilter) return false;
+    if (statusFilter !== 'all' && item.status !== statusFilter) return false;
     if (search) {
-      const haystack =
-        `${item.tenantName || ""} ${item.unitName || ""}`.toLowerCase();
+      const haystack = `${item.tenantName || ''} ${item.unitName || ''}`.toLowerCase();
       if (!haystack.includes(search.toLowerCase())) return false;
     }
     return true;
@@ -345,13 +259,10 @@ export default function BillChecklist() {
 
   // Grouped only in the "All" view. Picking a specific status already narrows
   // the list to one group, so headers would just repeat the chip you clicked.
-  const showGroupHeaders = statusFilter === "all";
+  const showGroupHeaders = statusFilter === 'all';
   const sections = (showGroupHeaders ? GROUP_ORDER : [statusFilter])
     .map((status) => {
-      const items = sortWithinStatus(
-        status,
-        filtered.filter((i) => i.status === status),
-      );
+      const items = sortWithinStatus(status, filtered.filter((i) => i.status === status));
       const total = items.reduce((sum, i) => sum + (i.amount || 0), 0);
       return { status, items, total };
     })
@@ -359,115 +270,67 @@ export default function BillChecklist() {
 
   // ---- bulk selection (derived from what's visible, so a bill that a filter
   // or search hides can never be marked paid by accident) ----
-  const visibleUnpaid = filtered.filter((i) => i.status !== "paid");
+  const visibleUnpaid = filtered.filter((i) => i.status !== 'paid');
   const selectedItems = visibleUnpaid.filter((i) => selected.has(itemKey(i)));
-  const allVisibleSelected =
-    visibleUnpaid.length > 0 && selectedItems.length === visibleUnpaid.length;
-  const selectedTotal = selectedItems.reduce(
-    (sum, i) => sum + (i.amount || 0),
-    0,
-  );
+  const allVisibleSelected = visibleUnpaid.length > 0 && selectedItems.length === visibleUnpaid.length;
+  const selectedTotal = selectedItems.reduce((sum, i) => sum + (i.amount || 0), 0);
 
   const setMany = (items, on) =>
     setSelected((prev) => {
       const next = new Set(prev);
-      items.forEach((i) =>
-        on ? next.add(itemKey(i)) : next.delete(itemKey(i)),
-      );
+      items.forEach((i) => (on ? next.add(itemKey(i)) : next.delete(itemKey(i))));
       return next;
     });
   const toggleOne = (item) => setMany([item], !selected.has(itemKey(item)));
 
-  const countForType = (type) =>
-    type === "all"
-      ? combined.length
-      : combined.filter((i) => i.billType === type).length;
+  const countForType = (type) => (type === 'all' ? combined.length : combined.filter((i) => i.billType === type).length);
 
   const renderTypeLabel = (t) =>
-    t === "all" ? (
-      <span>
-        All Bills <span className="text-ink/40">({countForType("all")})</span>
-      </span>
+    t === 'all' ? (
+      <span>All Bills <span className="text-ink/40">({countForType('all')})</span></span>
     ) : (
       <span>
         <BillIcon type={t} className="mr-1.5" />
-        {BILL_TYPE_META[t].label}{" "}
-        <span className="text-ink/40">({countForType(t)})</span>
+        {BILL_TYPE_META[t].label} <span className="text-ink/40">({countForType(t)})</span>
       </span>
     );
 
-  const totalObligations = combined.reduce(
-    (sum, i) => sum + (i.amount || 0),
-    0,
-  );
-  const collected = combined
-    .filter((i) => i.status === "paid")
-    .reduce((sum, i) => sum + (i.amount || 0), 0);
-  const collectedPct =
-    totalObligations > 0 ? Math.round((collected / totalObligations) * 100) : 0;
-  const overdueCount = combined.filter((i) => i.status === "overdue").length;
-  const overdueAmount = combined
-    .filter((i) => i.status === "overdue")
-    .reduce((sum, i) => sum + (i.amount || 0), 0);
+  const totalObligations = combined.reduce((sum, i) => sum + (i.amount || 0), 0);
+  const collected = combined.filter((i) => i.status === 'paid').reduce((sum, i) => sum + (i.amount || 0), 0);
+  const collectedPct = totalObligations > 0 ? Math.round((collected / totalObligations) * 100) : 0;
+  const overdueCount = combined.filter((i) => i.status === 'overdue').length;
+  const overdueAmount = combined.filter((i) => i.status === 'overdue').reduce((sum, i) => sum + (i.amount || 0), 0);
   // Segmented breakdown for the Collected card's progress bar - shows the
   // full paid/pending/overdue split in one glance instead of just the
   // paid percentage. "Upcoming" items are intentionally left out of the
   // three segments (there's no fourth color for them here), so the bar's
   // unfilled track also doubles as "not yet due."
-  const pendingAmount = combined
-    .filter((i) => i.status === "pending")
-    .reduce((sum, i) => sum + (i.amount || 0), 0);
-  const paidPct =
-    totalObligations > 0 ? Math.round((collected / totalObligations) * 100) : 0;
-  const pendingPct =
-    totalObligations > 0
-      ? Math.round((pendingAmount / totalObligations) * 100)
-      : 0;
-  const overduePct =
-    totalObligations > 0
-      ? Math.round((overdueAmount / totalObligations) * 100)
-      : 0;
-  const countForStatus = (s) =>
-    s === "all"
-      ? combined.length
-      : combined.filter((i) => i.status === s).length;
-  const typeBreakdown = ["rent", "electricity", "water", "wifi"].map((t) => {
-    const amount = combined
-      .filter((i) => i.billType === t)
-      .reduce((sum, i) => sum + (i.amount || 0), 0);
-    const pct =
-      totalObligations > 0 ? Math.round((amount / totalObligations) * 100) : 0;
+  const pendingAmount = combined.filter((i) => i.status === 'pending').reduce((sum, i) => sum + (i.amount || 0), 0);
+  const paidPct = totalObligations > 0 ? Math.round((collected / totalObligations) * 100) : 0;
+  const pendingPct = totalObligations > 0 ? Math.round((pendingAmount / totalObligations) * 100) : 0;
+  const overduePct = totalObligations > 0 ? Math.round((overdueAmount / totalObligations) * 100) : 0;
+  const countForStatus = (s) => (s === 'all' ? combined.length : combined.filter((i) => i.status === s).length);
+  const typeBreakdown = ['rent', 'electricity', 'water', 'wifi'].map((t) => {
+    const amount = combined.filter((i) => i.billType === t).reduce((sum, i) => sum + (i.amount || 0), 0);
+    const pct = totalObligations > 0 ? Math.round((amount / totalObligations) * 100) : 0;
     return { type: t, amount, pct };
   });
 
   // Jump from a modal to the matching slice of the list below.
   const renderStatusLabel = (st) => (
     <span className="flex items-center gap-2 capitalize">
-      {st !== "all" && (
-        <span
-          className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[st]}`}
-          aria-hidden="true"
-        />
-      )}
+      {st !== 'all' && <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[st]}`} aria-hidden="true" />}
       {st}
-      {st !== "all" && (
-        <span className="text-ink/40">{countForStatus(st)}</span>
-      )}
+      {st !== 'all' && <span className="text-ink/40">{countForStatus(st)}</span>}
     </span>
   );
 
   const viewInList = (status) => {
     setStatusFilter(status);
-    setTypeFilter("all");
-    setSearch("");
+    setTypeFilter('all');
+    setSearch('');
     setBreakdown(null);
-    setTimeout(
-      () =>
-        document
-          .getElementById("bill-list")
-          ?.scrollIntoView({ behavior: "smooth", block: "start" }),
-      50,
-    );
+    setTimeout(() => document.getElementById('bill-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
   return (
@@ -478,19 +341,10 @@ export default function BillChecklist() {
           <div>
             <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
-              Fiscal Cycle &middot;{" "}
-              {new Date().toLocaleDateString("en-US", {
-                month: "long",
-                year: "numeric",
-              })}
+              Fiscal Cycle &middot; {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
             </div>
-            <h1 className="mt-0.5 text-2xl font-bold tracking-tight sm:mt-1 sm:text-3xl">
-              Monthly Bill Checklist
-            </h1>
-            <p className="mt-1 hidden text-sm text-ink/50 sm:block">
-              Unified ledger for rent, electricity, water, and wifi obligations
-              across all units.
-            </p>
+            <h1 className="mt-0.5 text-2xl font-bold tracking-tight sm:mt-1 sm:text-3xl">Monthly Bill Checklist</h1>
+            <p className="mt-1 hidden text-sm text-ink/50 sm:block">Unified ledger for rent, electricity, water, and wifi obligations across all units.</p>
           </div>
 
           {/* The header used to be pure title text with a lot of empty
@@ -504,23 +358,17 @@ export default function BillChecklist() {
                 <div className="flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-status-paid" />
                   <span className="text-ink/50">Paid</span>
-                  <span className="ml-auto font-semibold">
-                    {peso(collected)}
-                  </span>
+                  <span className="ml-auto font-semibold">{peso(collected)}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-status-pending" />
                   <span className="text-ink/50">Pending</span>
-                  <span className="ml-auto font-semibold">
-                    {peso(pendingAmount)}
-                  </span>
+                  <span className="ml-auto font-semibold">{peso(pendingAmount)}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-status-overdue" />
                   <span className="text-ink/50">Overdue</span>
-                  <span className="ml-auto font-semibold">
-                    {peso(overdueAmount)}
-                  </span>
+                  <span className="ml-auto font-semibold">{peso(overdueAmount)}</span>
                 </div>
               </div>
               <div
@@ -530,12 +378,8 @@ export default function BillChecklist() {
                 }}
               >
                 <div className="absolute inset-1.5 flex flex-col items-center justify-center rounded-full bg-surface sm:inset-2">
-                  <span className="text-xs font-bold sm:text-base">
-                    {collectedPct}%
-                  </span>
-                  <span className="hidden text-[9px] text-ink/40 sm:block">
-                    collected
-                  </span>
+                  <span className="text-xs font-bold sm:text-base">{collectedPct}%</span>
+                  <span className="hidden text-[9px] text-ink/40 sm:block">collected</span>
                 </div>
               </div>
             </div>
@@ -549,24 +393,19 @@ export default function BillChecklist() {
             icon={faWallet}
             label="Total Obligations"
             value={peso(totalObligations)}
-            bar={typeBreakdown.map((b) => ({
-              pct: b.pct,
-              className: TYPE_COLOR[b.type].bar,
-            }))}
+            bar={typeBreakdown.map((b) => ({ pct: b.pct, className: TYPE_COLOR[b.type].bar }))}
             captions={[
               <span key="legend" className="flex flex-wrap gap-x-3 gap-y-1">
                 {typeBreakdown.map((b) => (
                   <span key={b.type} className="inline-flex items-center gap-1">
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${TYPE_COLOR[b.type].dot}`}
-                    />
+                    <span className={`h-1.5 w-1.5 rounded-full ${TYPE_COLOR[b.type].dot}`} />
                     {BILL_TYPE_META[b.type].label}
                   </span>
                 ))}
               </span>,
             ]}
             className="col-span-2 sm:col-span-1"
-            onClick={() => setBreakdown("obligations")}
+            onClick={() => setBreakdown('obligations')}
           />
           <StatCard
             icon={faShieldHalved}
@@ -575,12 +414,12 @@ export default function BillChecklist() {
             pill={{ text: `${collectedPct}%` }}
             value={peso(collected)}
             bar={[
-              { pct: paidPct, className: "bg-status-paid" },
-              { pct: pendingPct, className: "bg-status-pending" },
-              { pct: overduePct, className: "bg-status-overdue" },
+              { pct: paidPct, className: 'bg-status-paid' },
+              { pct: pendingPct, className: 'bg-status-pending' },
+              { pct: overduePct, className: 'bg-status-overdue' },
             ]}
-            captions={["Paid \u00b7 Pending \u00b7 Overdue split"]}
-            onClick={() => setBreakdown("collected")}
+            captions={['Paid \u00b7 Pending \u00b7 Overdue split']}
+            onClick={() => setBreakdown('collected')}
           />
           <StatCard
             icon={faTriangleExclamation}
@@ -589,7 +428,7 @@ export default function BillChecklist() {
             value={overdueCount}
             suffix={`of ${combined.length} total`}
             captions={[`${peso(overdueAmount)} past due`]}
-            onClick={() => setBreakdown("overdue")}
+            onClick={() => setBreakdown('overdue')}
           />
         </div>
       )}
@@ -621,23 +460,14 @@ export default function BillChecklist() {
                   onClick={() => setStatusFilter(st)}
                   aria-pressed={active}
                   className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-medium capitalize transition-colors ${
-                    active
-                      ? STATUS_CHIP_STYLE[st].active
-                      : "text-ink/60 hover:bg-line"
+                    active ? STATUS_CHIP_STYLE[st].active : 'text-ink/60 hover:bg-line'
                   }`}
                 >
-                  {st !== "all" && !active && (
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[st]}`}
-                      aria-hidden="true"
-                    />
+                  {st !== 'all' && !active && (
+                    <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[st]}`} aria-hidden="true" />
                   )}
                   {st}
-                  {st !== "all" && (
-                    <span className={active ? "opacity-80" : "text-ink/40"}>
-                      {countForStatus(st)}
-                    </span>
-                  )}
+                  {st !== 'all' && <span className={active ? 'opacity-80' : 'text-ink/40'}>{countForStatus(st)}</span>}
                 </button>
               );
             })}
@@ -671,9 +501,7 @@ export default function BillChecklist() {
             aria-label="Manage paid bills"
             title="Manage paid bills"
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors sm:h-11 sm:w-11 ${
-              manageMode
-                ? "bg-primary text-white"
-                : "bg-canvas text-ink/60 hover:bg-line"
+              manageMode ? 'bg-primary text-white' : 'bg-canvas text-ink/60 hover:bg-line'
             }`}
           >
             <FontAwesomeIcon icon={faGear} />
@@ -682,18 +510,14 @@ export default function BillChecklist() {
       </BentoCard>
 
       {notice && (
-        <p
-          role="status"
-          className="rounded-xl bg-status-paidSoft px-4 py-2.5 text-sm text-status-paid"
-        >
+        <p role="status" className="rounded-xl bg-status-paidSoft px-4 py-2.5 text-sm text-status-paid">
           {notice}
         </p>
       )}
 
       {manageMode && (
         <p className="-mt-3 text-xs text-ink/45">
-          Manage mode is on — paid bills below now show a "Mark Unpaid" action
-          in case one was marked paid by mistake.
+          Manage mode is on — paid bills below now show a "Mark Unpaid" action in case one was marked paid by mistake.
         </p>
       )}
 
@@ -734,21 +558,11 @@ export default function BillChecklist() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3">
-                    <SkeletonText width="w-16" />
-                  </td>
-                  <td className="px-4 py-3">
-                    <SkeletonText width="w-14" />
-                  </td>
-                  <td className="px-4 py-3">
-                    <SkeletonText width="w-20" />
-                  </td>
-                  <td className="px-4 py-3">
-                    <Skeleton className="h-5 w-16 rounded-full" />
-                  </td>
-                  <td className="px-4 py-3">
-                    <SkeletonText width="w-14" />
-                  </td>
+                  <td className="px-4 py-3"><SkeletonText width="w-16" /></td>
+                  <td className="px-4 py-3"><SkeletonText width="w-14" /></td>
+                  <td className="px-4 py-3"><SkeletonText width="w-20" /></td>
+                  <td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
+                  <td className="px-4 py-3"><SkeletonText width="w-14" /></td>
                 </tr>
               ))}
             </tbody>
@@ -760,7 +574,7 @@ export default function BillChecklist() {
           <p className="mt-1 text-sm text-ink/50">
             {combined.length === 0
               ? "No bills for this period yet. Add a tenant or a unit utility due day under Properties/Tenants and they'll show up here automatically."
-              : "No bills match this filter."}
+              : 'No bills match this filter.'}
           </p>
         </BentoCard>
       ) : (
@@ -777,50 +591,34 @@ export default function BillChecklist() {
                 disabled={visibleUnpaid.length === 0}
                 checked={allVisibleSelected}
                 ref={(el) => {
-                  if (el)
-                    el.indeterminate =
-                      selectedItems.length > 0 && !allVisibleSelected;
+                  if (el) el.indeterminate = selectedItems.length > 0 && !allVisibleSelected;
                 }}
                 onChange={() => setMany(visibleUnpaid, !allVisibleSelected)}
                 className="h-4 w-4 cursor-pointer rounded accent-primary disabled:cursor-not-allowed disabled:opacity-40"
               />
               Select all unpaid
-              <span className="ml-auto text-ink/40">
-                {filtered.length} bill{filtered.length === 1 ? "" : "s"}
-              </span>
+              <span className="ml-auto text-ink/40">{filtered.length} bill{filtered.length === 1 ? '' : 's'}</span>
             </label>
             {sections.map((section) => {
               const meta = GROUP_META[section.status];
-              const collapsed =
-                showGroupHeaders && section.status === "paid" && paidCollapsed;
+              const collapsed = showGroupHeaders && section.status === 'paid' && paidCollapsed;
               return (
                 <React.Fragment key={section.status}>
                   {showGroupHeaders && (
                     <div className="flex items-center gap-2 border-b border-line bg-canvas/60 px-3 py-2">
-                      <span
-                        className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[section.status]}`}
-                        aria-hidden="true"
-                      />
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-ink">
-                        {meta.label}
-                      </span>
-                      <span className="rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-medium text-ink/60">
-                        {section.items.length}
-                      </span>
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[section.status]}`} aria-hidden="true" />
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-ink">{meta.label}</span>
+                      <span className="rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-medium text-ink/60">{section.items.length}</span>
                       <span className="ml-auto flex items-center gap-2">
-                        {section.total > 0 && (
-                          <span className="text-xs font-medium text-ink/60">
-                            {peso(section.total)}
-                          </span>
-                        )}
-                        {section.status === "paid" && (
+                        {section.total > 0 && <span className="text-xs font-medium text-ink/60">{peso(section.total)}</span>}
+                        {section.status === 'paid' && (
                           <button
                             type="button"
                             onClick={() => setPaidCollapsed((c) => !c)}
                             aria-expanded={!paidCollapsed}
                             className="rounded-full bg-surface px-2.5 py-1 text-[11px] font-medium text-ink/60"
                           >
-                            {paidCollapsed ? "Show" : "Hide"}
+                            {paidCollapsed ? 'Show' : 'Hide'}
                           </button>
                         )}
                       </span>
@@ -829,15 +627,14 @@ export default function BillChecklist() {
                   {!collapsed && (
                     <div className="divide-y divide-line">
                       {section.items.map((item) => {
-                        const style =
-                          ROW_STYLE[item.status] || ROW_STYLE.upcoming;
+                        const style = ROW_STYLE[item.status] || ROW_STYLE.upcoming;
                         return (
                           <div
                             key={`${item.billType}-${item.id}`}
                             className={`flex items-center gap-2.5 border-l-4 py-2.5 pl-2.5 pr-3 ${style.tint} ${style.edge}`}
                           >
                             <div className="w-4 shrink-0">
-                              {item.status !== "paid" && (
+                              {item.status !== 'paid' && (
                                 <input
                                   type="checkbox"
                                   aria-label={`Select ${item.tenantName || item.unitName} ${BILL_TYPE_META[item.billType].label} bill`}
@@ -847,48 +644,29 @@ export default function BillChecklist() {
                                 />
                               )}
                             </div>
-                            <Avatar
-                              name={item.tenantName || item.unitName}
-                              size="sm"
-                            />
+                            <Avatar name={item.tenantName || item.unitName} size="sm" />
                             <div className="min-w-0 flex-1">
-                              <p
-                                className={`truncate text-sm font-medium leading-tight ${style.muted ? "text-ink/40" : ""}`}
-                              >
-                                {item.tenantName || "Vacant"}
+                              <p className={`truncate text-sm font-medium leading-tight ${style.muted ? 'text-ink/40' : ''}`}>
+                                {item.tenantName || 'Vacant'}
                               </p>
-                              <p
-                                className={`mt-0.5 flex items-center gap-1.5 text-xs ${style.muted ? "text-ink/35" : "text-ink/55"}`}
-                              >
-                                <span
-                                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${style.chipBg} ${style.chipText}`}
-                                >
-                                  <BillIcon
-                                    type={item.billType}
-                                    className="text-[8px]"
-                                  />
+                              <p className={`mt-0.5 flex items-center gap-1.5 text-xs ${style.muted ? 'text-ink/35' : 'text-ink/55'}`}>
+                                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${style.chipBg} ${style.chipText}`}>
+                                  <BillIcon type={item.billType} className="text-[8px]" />
                                 </span>
                                 <span className="truncate">
-                                  {BILL_TYPE_META[item.billType].label} &middot;{" "}
-                                  {item.unitName}
+                                  {BILL_TYPE_META[item.billType].label} &middot; {item.unitName}
                                 </span>
                               </p>
                               <div className="mt-1 flex items-center gap-2">
                                 <StatusBadge status={item.status} />
-                                <span
-                                  className={`text-[11px] ${style.muted ? "text-ink/30" : "text-ink/50"}`}
-                                >
+                                <span className={`text-[11px] ${style.muted ? 'text-ink/30' : 'text-ink/50'}`}>
                                   {new Date(item.dueDate).toLocaleDateString()}
                                 </span>
                               </div>
                             </div>
                             <div className="flex shrink-0 flex-col items-end gap-1.5">
-                              <p
-                                className={`text-sm font-semibold ${style.muted ? "text-ink/40" : ""}`}
-                              >
-                                {peso(item.amount)}
-                              </p>
-                              {item.status !== "paid" ? (
+                              <p className={`text-sm font-semibold ${style.muted ? 'text-ink/40' : ''}`}>{peso(item.amount)}</p>
+                              {item.status !== 'paid' ? (
                                 <button
                                   onClick={() => openConfirm([item])}
                                   className="rounded-full bg-success px-3 py-1.5 text-xs font-medium text-white active:bg-success-dark"
@@ -896,10 +674,7 @@ export default function BillChecklist() {
                                   Mark Paid
                                 </button>
                               ) : manageMode ? (
-                                <button
-                                  onClick={() => handleMarkUnpaid(item)}
-                                  className="py-1 text-xs font-medium text-status-overdue"
-                                >
+                                <button onClick={() => handleMarkUnpaid(item)} className="py-1 text-xs font-medium text-status-overdue">
                                   Mark Unpaid
                                 </button>
                               ) : null}
@@ -924,9 +699,7 @@ export default function BillChecklist() {
                     disabled={visibleUnpaid.length === 0}
                     checked={allVisibleSelected}
                     ref={(el) => {
-                      if (el)
-                        el.indeterminate =
-                          selectedItems.length > 0 && !allVisibleSelected;
+                      if (el) el.indeterminate = selectedItems.length > 0 && !allVisibleSelected;
                     }}
                     onChange={() => setMany(visibleUnpaid, !allVisibleSelected)}
                     className="h-4 w-4 cursor-pointer rounded accent-primary disabled:cursor-not-allowed disabled:opacity-40"
@@ -943,61 +716,42 @@ export default function BillChecklist() {
             <tbody className="divide-y divide-line">
               {sections.map((section) => {
                 const meta = GROUP_META[section.status];
-                const collapsed =
-                  showGroupHeaders &&
-                  section.status === "paid" &&
-                  paidCollapsed;
+                const collapsed = showGroupHeaders && section.status === 'paid' && paidCollapsed;
                 return (
                   <React.Fragment key={section.status}>
                     {showGroupHeaders && (
                       <tr className="bg-canvas/60">
                         <td className="py-2.5 pl-4 pr-0">
-                          {section.status !== "paid" && (
+                          {section.status !== 'paid' && (
                             <input
                               type="checkbox"
                               aria-label={`Select all ${meta.label.toLowerCase()} bills`}
-                              checked={
-                                section.items.length > 0 &&
-                                section.items.every((i) =>
-                                  selected.has(itemKey(i)),
-                                )
-                              }
-                              onChange={(e) =>
-                                setMany(section.items, e.target.checked)
-                              }
+                              checked={section.items.length > 0 && section.items.every((i) => selected.has(itemKey(i)))}
+                              onChange={(e) => setMany(section.items, e.target.checked)}
                               className="h-4 w-4 cursor-pointer rounded accent-primary"
                             />
                           )}
                         </td>
                         <td colSpan={6} className="px-4 py-2.5">
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <span
-                              className={`h-2 w-2 rounded-full ${STATUS_DOT[section.status]}`}
-                              aria-hidden="true"
-                            />
-                            <span className="text-xs font-semibold uppercase tracking-wide text-ink">
-                              {meta.label}
-                            </span>
+                            <span className={`h-2 w-2 rounded-full ${STATUS_DOT[section.status]}`} aria-hidden="true" />
+                            <span className="text-xs font-semibold uppercase tracking-wide text-ink">{meta.label}</span>
                             <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-ink/60">
                               {section.items.length}
                             </span>
-                            <span className="text-xs text-ink/45">
-                              {meta.hint}
-                            </span>
+                            <span className="text-xs text-ink/45">{meta.hint}</span>
                             <span className="ml-auto flex items-center gap-3">
                               {section.total > 0 && (
-                                <span className="text-xs font-medium text-ink/60">
-                                  {peso(section.total)}
-                                </span>
+                                <span className="text-xs font-medium text-ink/60">{peso(section.total)}</span>
                               )}
-                              {section.status === "paid" && (
+                              {section.status === 'paid' && (
                                 <button
                                   type="button"
                                   onClick={() => setPaidCollapsed((c) => !c)}
                                   aria-expanded={!paidCollapsed}
                                   className="rounded-full bg-surface px-3 py-1 text-xs font-medium text-ink/60 hover:bg-line"
                                 >
-                                  {paidCollapsed ? "Show" : "Hide"}
+                                  {paidCollapsed ? 'Show' : 'Hide'}
                                 </button>
                               )}
                             </span>
@@ -1007,17 +761,11 @@ export default function BillChecklist() {
                     )}
                     {!collapsed &&
                       section.items.map((item) => {
-                        const style =
-                          ROW_STYLE[item.status] || ROW_STYLE.upcoming;
+                        const style = ROW_STYLE[item.status] || ROW_STYLE.upcoming;
                         return (
-                          <tr
-                            key={`${item.billType}-${item.id}`}
-                            className={style.tint}
-                          >
-                            <td
-                              className={`w-10 border-l-4 py-3 pl-3 pr-0 ${style.edge}`}
-                            >
-                              {item.status !== "paid" && (
+                          <tr key={`${item.billType}-${item.id}`} className={style.tint}>
+                            <td className={`w-10 border-l-4 py-3 pl-3 pr-0 ${style.edge}`}>
+                              {item.status !== 'paid' && (
                                 <input
                                   type="checkbox"
                                   aria-label={`Select ${item.tenantName || item.unitName} ${BILL_TYPE_META[item.billType].label} bill`}
@@ -1029,52 +777,26 @@ export default function BillChecklist() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2.5">
-                                <Avatar
-                                  name={item.tenantName || item.unitName}
-                                  size="sm"
-                                />
+                                <Avatar name={item.tenantName || item.unitName} size="sm" />
                                 <div>
-                                  <p
-                                    className={`font-medium ${style.muted ? "text-ink/40" : ""}`}
-                                  >
-                                    {item.tenantName || "Vacant"}
-                                  </p>
-                                  <p className="text-xs text-ink/50">
-                                    {item.unitName}
-                                  </p>
+                                  <p className={`font-medium ${style.muted ? 'text-ink/40' : ''}`}>{item.tenantName || 'Vacant'}</p>
+                                  <p className="text-xs text-ink/50">{item.unitName}</p>
                                 </div>
                               </div>
                             </td>
-                            <td
-                              className={`px-4 py-3 ${style.muted ? "text-ink/40" : "text-ink/70"}`}
-                            >
+                            <td className={`px-4 py-3 ${style.muted ? 'text-ink/40' : 'text-ink/70'}`}>
                               <span className="inline-flex items-center gap-2">
-                                <span
-                                  className={`flex h-6 w-6 items-center justify-center rounded-full ${style.chipBg} ${style.chipText}`}
-                                >
-                                  <BillIcon
-                                    type={item.billType}
-                                    className="text-[11px]"
-                                  />
+                                <span className={`flex h-6 w-6 items-center justify-center rounded-full ${style.chipBg} ${style.chipText}`}>
+                                  <BillIcon type={item.billType} className="text-[11px]" />
                                 </span>
                                 {BILL_TYPE_META[item.billType].label}
                               </span>
                             </td>
-                            <td
-                              className={`px-4 py-3 font-medium ${style.muted ? "text-ink/40" : ""}`}
-                            >
-                              {peso(item.amount)}
-                            </td>
-                            <td
-                              className={`px-4 py-3 ${style.muted ? "text-ink/30" : "text-ink/60"}`}
-                            >
-                              {new Date(item.dueDate).toLocaleDateString()}
-                            </td>
+                            <td className={`px-4 py-3 font-medium ${style.muted ? 'text-ink/40' : ''}`}>{peso(item.amount)}</td>
+                            <td className={`px-4 py-3 ${style.muted ? 'text-ink/30' : 'text-ink/60'}`}>{new Date(item.dueDate).toLocaleDateString()}</td>
+                            <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
                             <td className="px-4 py-3">
-                              <StatusBadge status={item.status} />
-                            </td>
-                            <td className="px-4 py-3">
-                              {item.status !== "paid" ? (
+                              {item.status !== 'paid' ? (
                                 <button
                                   onClick={() => openConfirm([item])}
                                   className="rounded-full bg-success px-3 py-1 text-xs font-medium text-white hover:bg-success-dark"
@@ -1082,16 +804,11 @@ export default function BillChecklist() {
                                   Mark Paid
                                 </button>
                               ) : manageMode ? (
-                                <button
-                                  onClick={() => handleMarkUnpaid(item)}
-                                  className="text-xs font-medium text-status-overdue"
-                                >
+                                <button onClick={() => handleMarkUnpaid(item)} className="text-xs font-medium text-status-overdue">
                                   Mark Unpaid
                                 </button>
                               ) : (
-                                <span className="text-xs text-ink/30">
-                                  &mdash;
-                                </span>
+                                <span className="text-xs text-ink/30">&mdash;</span>
                               )}
                             </td>
                           </tr>
@@ -1115,9 +832,7 @@ export default function BillChecklist() {
       <ConfirmPaidModal
         items={confirmItems}
         amounts={confirmAmounts}
-        onAmountChange={(key, value) =>
-          setConfirmAmounts((prev) => ({ ...prev, [key]: value }))
-        }
+        onAmountChange={(key, value) => setConfirmAmounts((prev) => ({ ...prev, [key]: value }))}
         busy={confirmBusy}
         error={confirmError}
         onConfirm={confirmPaid}
@@ -1129,14 +844,8 @@ export default function BillChecklist() {
       {selectedItems.length > 0 && !confirmItems && (
         <div className="pointer-events-none fixed inset-x-0 bottom-24 z-40 flex justify-center px-4 lg:bottom-6">
           <div className="pointer-events-auto flex flex-wrap items-center gap-x-3 gap-y-2 rounded-full bg-ink py-2 pl-5 pr-2 text-white shadow-xl">
-            <span className="text-sm font-semibold">
-              {selectedItems.length} selected
-            </span>
-            {selectedTotal > 0 && (
-              <span className="text-sm text-white/60">
-                {peso(selectedTotal)}
-              </span>
-            )}
+            <span className="text-sm font-semibold">{selectedItems.length} selected</span>
+            {selectedTotal > 0 && <span className="text-sm text-white/60">{peso(selectedTotal)}</span>}
             <button
               type="button"
               onClick={() => setSelected(new Set())}
