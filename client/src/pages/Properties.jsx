@@ -1,72 +1,44 @@
-import React, {
-  useEffect,
-  useLayoutEffect,
-  useReducer,
-  useRef,
-  useState,
-} from "react";
-import client from "../api/client.js";
-import ToolbarSearch from "../components/ToolbarSearch.jsx";
-import BentoCard from "../components/BentoCard.jsx";
-import { Skeleton, SkeletonText } from "../components/Skeleton.jsx";
-import { BillIcon } from "../lib/billIcons.jsx";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faBolt,
-  faBuilding,
-  faGear,
-  faKey,
-  faPlus,
-  faWallet,
-} from "@fortawesome/free-solid-svg-icons";
-import UnitCard from "../components/UnitCard.jsx";
-import StatCard from "../components/StatCard.jsx";
-import PropertyStatModals from "../components/PropertyStatModals.jsx";
-import PropertyDetailModal from "../components/PropertyDetailModal.jsx";
+import React, { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
+import client from '../api/client.js';
+import ToolbarSearch from '../components/ToolbarSearch.jsx';
+import BentoCard from '../components/BentoCard.jsx';
+import { Skeleton, SkeletonText } from '../components/Skeleton.jsx';
+import { BillIcon } from '../lib/billIcons.jsx';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faBolt, faBuilding, faGear, faKey, faPlus, faWallet } from '@fortawesome/free-solid-svg-icons';
+import UnitCard from '../components/UnitCard.jsx';
+import StatCard from '../components/StatCard.jsx';
+import PropertyStatModals from '../components/PropertyStatModals.jsx';
+import PropertyDetailModal from '../components/PropertyDetailModal.jsx';
 
 function peso(amount) {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-    maximumFractionDigits: 0,
-  }).format(amount || 0);
+  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(
+    amount || 0
+  );
 }
 
 function cleanNumber(raw, { decimals = 0, max } = {}) {
-  let next = String(raw ?? "").replace(
-    decimals > 0 ? /[^0-9.]/g : /[^0-9]/g,
-    "",
-  );
+  let next = String(raw ?? '').replace(decimals > 0 ? /[^0-9.]/g : /[^0-9]/g, '');
   if (decimals > 0) {
-    const [whole, ...rest] = next.split(".");
-    next = rest.length ? `${whole}.${rest.join("").slice(0, decimals)}` : whole;
+    const [whole, ...rest] = next.split('.');
+    next = rest.length ? `${whole}.${rest.join('').slice(0, decimals)}` : whole;
   }
-  next = next.replace(/^0+(?=\d)/, "");
-  if (max !== undefined && next !== "" && Number(next) > max)
-    next = String(max);
+  next = next.replace(/^0+(?=\d)/, '');
+  if (max !== undefined && next !== '' && Number(next) > max) next = String(max);
   return next;
 }
 
 function withCommas(raw) {
-  const [whole, fraction] = String(raw).split(".");
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const [whole, fraction] = String(raw).split('.');
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return fraction === undefined ? grouped : `${grouped}.${fraction}`;
 }
 
-function NumberInput({
-  value,
-  onChange,
-  decimals = 0,
-  min,
-  max,
-  commas = false,
-  className,
-  ...rest
-}) {
+function NumberInput({ value, onChange, decimals = 0, min, max, commas = false, className, ...rest }) {
   const inputRef = useRef(null);
   const caretRef = useRef(null);
   const [, refresh] = useReducer((n) => n + 1, 0);
-  const raw = String(value ?? "");
+  const raw = String(value ?? '');
   const display = commas ? withCommas(raw) : raw;
 
   useLayoutEffect(() => {
@@ -85,7 +57,7 @@ function NumberInput({
   const handleChange = (e) => {
     const typed = e.target.value;
     const caret = e.target.selectionStart ?? typed.length;
-    caretRef.current = typed.slice(0, caret).replace(/[^0-9.]/g, "").length;
+    caretRef.current = typed.slice(0, caret).replace(/[^0-9.]/g, '').length;
     onChange(cleanNumber(typed, { decimals, max }));
     refresh();
   };
@@ -95,13 +67,12 @@ function NumberInput({
       {...rest}
       ref={inputRef}
       type="text"
-      inputMode={decimals > 0 ? "decimal" : "numeric"}
+      inputMode={decimals > 0 ? 'decimal' : 'numeric'}
       autoComplete="off"
       value={display}
       onChange={handleChange}
       onBlur={() => {
-        if (min !== undefined && raw !== "" && Number(raw) < min)
-          onChange(String(min));
+        if (min !== undefined && raw !== '' && Number(raw) < min) onChange(String(min));
       }}
       className={className}
     />
@@ -109,32 +80,32 @@ function NumberInput({
 }
 
 const UTILITY_TYPES = [
-  { key: "electricity", label: "Electricity" },
-  { key: "water", label: "Water" },
-  { key: "wifi", label: "Wifi" },
+  { key: 'electricity', label: 'Electricity' },
+  { key: 'water', label: 'Water' },
+  { key: 'wifi', label: 'Wifi' },
 ];
 
 function emptyUnitForm() {
   return {
-    name: "",
-    monthlyRent: "",
-    electricityAmount: "",
-    electricityDueDay: "",
-    waterAmount: "",
-    waterDueDay: "",
-    wifiAmount: "",
-    wifiDueDay: "",
+    name: '',
+    monthlyRent: '',
+    electricityAmount: '',
+    electricityDueDay: '',
+    waterAmount: '',
+    waterDueDay: '',
+    wifiAmount: '',
+    wifiDueDay: '',
   };
 }
 
 // "Unit 101" -> "Unit 102", "Room 9" -> "Room 10"; names with no trailing
 // number get " (copy)" so a duplicate is never silently identical.
 function nextUnitName(name) {
-  const trimmed = String(name || "").trim();
+  const trimmed = String(name || '').trim();
   const match = trimmed.match(/^(.*?)(\d+)(\D*)$/);
-  if (!match) return trimmed ? `${trimmed} (copy)` : "";
+  if (!match) return trimmed ? `${trimmed} (copy)` : '';
   const [, prefix, digits, suffix] = match;
-  const next = String(Number(digits) + 1).padStart(digits.length, "0");
+  const next = String(Number(digits) + 1).padStart(digits.length, '0');
   return `${prefix}${next}${suffix}`;
 }
 
@@ -146,14 +117,14 @@ function newDraftUnit(fields = emptyUnitForm()) {
 
 function unitToFormState(unit) {
   return {
-    name: unit.name || "",
-    monthlyRent: unit.monthlyRent ?? "",
-    electricityAmount: unit.utilities?.electricity?.amount || "",
-    electricityDueDay: unit.utilities?.electricity?.dueDay || "",
-    waterAmount: unit.utilities?.water?.amount || "",
-    waterDueDay: unit.utilities?.water?.dueDay || "",
-    wifiAmount: unit.utilities?.wifi?.amount || "",
-    wifiDueDay: unit.utilities?.wifi?.dueDay || "",
+    name: unit.name || '',
+    monthlyRent: unit.monthlyRent ?? '',
+    electricityAmount: unit.utilities?.electricity?.amount || '',
+    electricityDueDay: unit.utilities?.electricity?.dueDay || '',
+    waterAmount: unit.utilities?.water?.amount || '',
+    waterDueDay: unit.utilities?.water?.dueDay || '',
+    wifiAmount: unit.utilities?.wifi?.amount || '',
+    wifiDueDay: unit.utilities?.wifi?.dueDay || '',
   };
 }
 
@@ -177,14 +148,13 @@ function utilitiesPayloadFrom(form) {
 function hasInvalidUtilityDueDay(form) {
   return UTILITY_TYPES.some(({ key }) => {
     const value = form[`${key}DueDay`];
-    if (value === "" || value === null || value === undefined) return false;
+    if (value === '' || value === null || value === undefined) return false;
     const day = Number(value);
     return !Number.isInteger(day) || day < 1 || day > 31;
   });
 }
 
-const UTILITY_DAY_ERROR =
-  "Utility due days must be whole numbers from 1 to 31.";
+const UTILITY_DAY_ERROR = 'Utility due days must be whole numbers from 1 to 31.';
 
 function UnitFieldsEditor({ form, onChange }) {
   const set = (key) => (e) => onChange({ ...form, [key]: e.target.value });
@@ -195,7 +165,7 @@ function UnitFieldsEditor({ form, onChange }) {
         required
         placeholder="Unit name (e.g. Unit 101)"
         value={form.name}
-        onChange={set("name")}
+        onChange={set('name')}
         className="w-full rounded-lg border border-line px-3 py-2 text-sm"
       />
       <div>
@@ -206,21 +176,16 @@ function UnitFieldsEditor({ form, onChange }) {
           commas
           placeholder="0"
           value={form.monthlyRent}
-          onChange={setNumber("monthlyRent")}
+          onChange={setNumber('monthlyRent')}
           className="mt-0.5 w-full rounded-lg border border-line px-3 py-2 text-sm"
         />
       </div>
 
       <div className="space-y-2">
-        <p className="text-[11px] font-medium text-ink/50">
-          Utilities (optional) &mdash; amount and day of month each is due
-        </p>
+        <p className="text-[11px] font-medium text-ink/50">Utilities (optional) &mdash; amount and day of month each is due</p>
         {UTILITY_TYPES.map(({ key, label }) => (
           <div key={key} className="grid grid-cols-3 items-center gap-2">
-            <span className="text-xs text-ink/60">
-              <BillIcon type={key} className="mr-1" />
-              {label}
-            </span>
+            <span className="text-xs text-ink/60"><BillIcon type={key} className="mr-1" />{label}</span>
             <NumberInput
               decimals={2}
               commas
@@ -242,9 +207,8 @@ function UnitFieldsEditor({ form, onChange }) {
       </div>
 
       <p className="text-[11px] text-ink/40">
-        Utility amounts and due days are for your own reference — they're shown
-        alongside rent and on the calendar, but they aren't billed or tracked as
-        rent obligations.
+        Utility amounts and due days are for your own reference — they're shown alongside rent and on the calendar,
+        but they aren't billed or tracked as rent obligations.
       </p>
     </>
   );
@@ -255,11 +219,7 @@ export default function Properties() {
   const [unitsByProperty, setUnitsByProperty] = useState({});
   const [loading, setLoading] = useState(true);
   const [showPropertyForm, setShowPropertyForm] = useState(false);
-  const [propertyForm, setPropertyForm] = useState({
-    name: "",
-    address: "",
-    description: "",
-  });
+  const [propertyForm, setPropertyForm] = useState({ name: '', address: '', description: '' });
   // A property can't exist without at least one unit, so the create form also
   // collects one or more units and they are all submitted together.
   const [draftUnits, setDraftUnits] = useState(() => [newDraftUnit()]);
@@ -269,28 +229,24 @@ export default function Properties() {
   // Manage mode reveals the edit / add-unit actions; the page is a clean
   // read-only overview otherwise (same pattern as the Tenants page).
   const [manageMode, setManageMode] = useState(false);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState('');
   const [editingPropertyId, setEditingPropertyId] = useState(null);
-  const [editPropertyForm, setEditPropertyForm] = useState({
-    name: "",
-    address: "",
-    description: "",
-  });
+  const [editPropertyForm, setEditPropertyForm] = useState({ name: '', address: '', description: '' });
   const [unitFormFor, setUnitFormFor] = useState(null);
   const [unitForm, setUnitForm] = useState(emptyUnitForm());
   const [detailPropertyId, setDetailPropertyId] = useState(null);
   const [editingUnitId, setEditingUnitId] = useState(null);
   const [editUnitForm, setEditUnitForm] = useState(emptyUnitForm());
-  const [editUnitStatus, setEditUnitStatus] = useState("vacant");
-  const [error, setError] = useState("");
+  const [editUnitStatus, setEditUnitStatus] = useState('vacant');
+  const [error, setError] = useState('');
 
   const loadProperties = async () => {
-    const { data } = await client.get("/properties");
+    const { data } = await client.get('/properties');
     setProperties(data.properties);
   };
 
   const loadUnits = async (propertyId) => {
-    const { data } = await client.get("/units", { params: { propertyId } });
+    const { data } = await client.get('/units', { params: { propertyId } });
     setUnitsByProperty((prev) => ({ ...prev, [propertyId]: data.units }));
   };
 
@@ -303,9 +259,7 @@ export default function Properties() {
   }, [properties.length]);
 
   const updateDraftUnit = (draftId, next) =>
-    setDraftUnits((list) =>
-      list.map((u) => (u.draftId === draftId ? { ...next, draftId } : u)),
-    );
+    setDraftUnits((list) => list.map((u) => (u.draftId === draftId ? { ...next, draftId } : u)));
 
   const addDraftUnit = () => setDraftUnits((list) => [...list, newDraftUnit()]);
 
@@ -320,52 +274,46 @@ export default function Properties() {
     });
 
   const removeDraftUnit = (draftId) =>
-    setDraftUnits((list) =>
-      list.length > 1 ? list.filter((u) => u.draftId !== draftId) : list,
-    );
+    setDraftUnits((list) => (list.length > 1 ? list.filter((u) => u.draftId !== draftId) : list));
 
   const resetPropertyDraft = () => {
-    setPropertyForm({ name: "", address: "", description: "" });
+    setPropertyForm({ name: '', address: '', description: '' });
     setDraftUnits([newDraftUnit()]);
   };
 
   const handleCreateProperty = async (e) => {
     e.preventDefault();
-    setError("");
+    setError('');
     if (draftUnits.some((u) => hasInvalidUtilityDueDay(u))) {
       setError(UTILITY_DAY_ERROR);
       return;
     }
     const names = draftUnits.map((u) => u.name.trim().toLowerCase());
     if (new Set(names).size !== names.length) {
-      setError(
-        "Each unit needs a different name. Rename the duplicated units before saving.",
-      );
+      setError('Each unit needs a different name. Rename the duplicated units before saving.');
       return;
     }
     setCreatingProperty(true);
 
     let createdId = null;
     try {
-      const { data } = await client.post("/properties", propertyForm);
+      const { data } = await client.post('/properties', propertyForm);
       const created = data?.property || data;
       createdId = created?._id || created?.id || null;
 
       // Response shape fallback: find the property we just made by name + address.
       if (!createdId) {
-        const list = await client.get("/properties");
+        const list = await client.get('/properties');
         const match = (list.data.properties || []).find(
-          (pr) =>
-            pr.name === propertyForm.name &&
-            pr.address === propertyForm.address,
+          (pr) => pr.name === propertyForm.name && pr.address === propertyForm.address
         );
         createdId = match?._id || null;
       }
-      if (!createdId) throw new Error("missing property id");
+      if (!createdId) throw new Error('missing property id');
 
       // Sequential (not parallel) so units are created in the order shown.
       for (const unit of draftUnits) {
-        await client.post("/units", {
+        await client.post('/units', {
           propertyId: createdId,
           name: unit.name.trim(),
           monthlyRent: Number(unit.monthlyRent),
@@ -386,10 +334,7 @@ export default function Properties() {
           await loadProperties();
         }
       }
-      setError(
-        err.response?.data?.error?.message ||
-          "Could not add property. Nothing was saved, please try again.",
-      );
+      setError(err.response?.data?.error?.message || 'Could not add property. Nothing was saved, please try again.');
     } finally {
       setCreatingProperty(false);
     }
@@ -398,9 +343,9 @@ export default function Properties() {
   const startEditProperty = (property) => {
     setEditingPropertyId(property._id);
     setEditPropertyForm({
-      name: property.name || "",
-      address: property.address || "",
-      description: property.description || "",
+      name: property.name || '',
+      address: property.address || '',
+      description: property.description || '',
     });
   };
 
@@ -410,44 +355,40 @@ export default function Properties() {
 
   const handleUpdateProperty = async (e, propertyId) => {
     e.preventDefault();
-    setError("");
+    setError('');
     try {
       await client.patch(`/properties/${propertyId}`, editPropertyForm);
       setEditingPropertyId(null);
       await loadProperties();
     } catch (err) {
-      setError(
-        err.response?.data?.error?.message || "Could not update property.",
-      );
+      setError(err.response?.data?.error?.message || 'Could not update property.');
     }
   };
 
   const handleDeleteProperty = async (property) => {
     const confirmed = confirm(
-      `Delete "${property.name}"? This can't be undone. Properties with occupied units can't be deleted — move those tenants out first.`,
+      `Delete "${property.name}"? This can't be undone. Properties with occupied units can't be deleted — move those tenants out first.`
     );
     if (!confirmed) return;
-    setError("");
+    setError('');
     try {
       await client.delete(`/properties/${property._id}`);
       setEditingPropertyId(null);
       await loadProperties();
     } catch (err) {
-      setError(
-        err.response?.data?.error?.message || "Could not delete this property.",
-      );
+      setError(err.response?.data?.error?.message || 'Could not delete this property.');
     }
   };
 
   const handleCreateUnit = async (e, propertyId) => {
     e.preventDefault();
-    setError("");
+    setError('');
     if (hasInvalidUtilityDueDay(unitForm)) {
       setError(UTILITY_DAY_ERROR);
       return;
     }
     try {
-      await client.post("/units", {
+      await client.post('/units', {
         propertyId,
         name: unitForm.name,
         monthlyRent: Number(unitForm.monthlyRent),
@@ -458,7 +399,7 @@ export default function Properties() {
       await loadUnits(propertyId);
       await loadProperties();
     } catch (err) {
-      setError(err.response?.data?.error?.message || "Could not add unit.");
+      setError(err.response?.data?.error?.message || 'Could not add unit.');
     }
   };
 
@@ -474,7 +415,7 @@ export default function Properties() {
 
   const handleUpdateUnit = async (e, unit) => {
     e.preventDefault();
-    setError("");
+    setError('');
     if (hasInvalidUtilityDueDay(editUnitForm)) {
       setError(UTILITY_DAY_ERROR);
       return;
@@ -485,14 +426,14 @@ export default function Properties() {
         monthlyRent: Number(editUnitForm.monthlyRent),
         utilities: utilitiesPayloadFrom(editUnitForm),
       };
-      if (unit.status !== "occupied") payload.status = editUnitStatus;
+      if (unit.status !== 'occupied') payload.status = editUnitStatus;
 
       await client.patch(`/units/${unit._id}`, payload);
       setEditingUnitId(null);
       await loadUnits(unit.property);
       await loadProperties();
     } catch (err) {
-      setError(err.response?.data?.error?.message || "Could not update unit.");
+      setError(err.response?.data?.error?.message || 'Could not update unit.');
     }
   };
 
@@ -500,63 +441,41 @@ export default function Properties() {
     const isLastUnit = (unitsByProperty[unit.property] || []).length <= 1;
     const confirmed = confirm(
       `Delete "${unit.name}"? This can't be undone. Units with a current tenant can't be deleted \u2014 move the tenant out first.` +
-        (isLastUnit
-          ? " This is the last unit in this property, so the property will be left with no units."
-          : ""),
+        (isLastUnit ? ' This is the last unit in this property, so the property will be left with no units.' : '')
     );
     if (!confirmed) return;
-    setError("");
+    setError('');
     try {
       await client.delete(`/units/${unit._id}`);
       setEditingUnitId(null);
       await loadUnits(unit.property);
       await loadProperties();
     } catch (err) {
-      setError(
-        err.response?.data?.error?.message || "Could not delete this unit.",
-      );
+      setError(err.response?.data?.error?.message || 'Could not delete this unit.');
     }
   };
 
   const allUnits = Object.values(unitsByProperty).flat();
-  const totalPotentialGross = allUnits.reduce(
-    (sum, u) => sum + (u.monthlyRent || 0),
-    0,
-  );
-  const occupiedCount = allUnits.filter((u) => u.status === "occupied").length;
-  const occupancyPct =
-    allUnits.length > 0
-      ? Math.round((occupiedCount / allUnits.length) * 100)
-      : 0;
+  const totalPotentialGross = allUnits.reduce((sum, u) => sum + (u.monthlyRent || 0), 0);
+  const occupiedCount = allUnits.filter((u) => u.status === 'occupied').length;
+  const occupancyPct = allUnits.length > 0 ? Math.round((occupiedCount / allUnits.length) * 100) : 0;
   const baselinesConfiguredCount = allUnits.filter((u) =>
-    Object.values(u.utilities || {}).some((v) => v?.amount),
+    Object.values(u.utilities || {}).some((v) => v?.amount)
   ).length;
 
   // Search: a property is listed if its own name/address/description matches
   // (then all its units show), or if some of its units match by unit name or
   // current tenant (then only those units show).
   const searchTerm = search.trim().toLowerCase();
-  const hit = (...values) =>
-    values.some((v) =>
-      String(v || "")
-        .toLowerCase()
-        .includes(searchTerm),
-    );
+  const hit = (...values) => values.some((v) => String(v || '').toLowerCase().includes(searchTerm));
   const visibleProperties = properties
     .map((property) => {
       const units = unitsByProperty[property._id] || [];
-      if (
-        !searchTerm ||
-        hit(property.name, property.address, property.description)
-      ) {
+      if (!searchTerm || hit(property.name, property.address, property.description)) {
         return { property, units, totalUnits: units.length };
       }
-      const matching = units.filter((u) =>
-        hit(u.name, u.currentTenant?.fullName),
-      );
-      return matching.length > 0
-        ? { property, units: matching, totalUnits: units.length }
-        : null;
+      const matching = units.filter((u) => hit(u.name, u.currentTenant?.fullName));
+      return matching.length > 0 ? { property, units: matching, totalUnits: units.length } : null;
     })
     .filter(Boolean);
 
@@ -570,12 +489,8 @@ export default function Properties() {
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
               Asset Overview &middot; Real Estate Portfolio
             </div>
-            <h1 className="mt-0.5 text-2xl font-bold tracking-tight sm:mt-1 sm:text-3xl">
-              Properties &amp; Units
-            </h1>
-            <p className="mt-1 text-sm text-ink/50">
-              Portfolio management, occupancy health, and unit rent schedules.
-            </p>
+            <h1 className="mt-0.5 text-2xl font-bold tracking-tight sm:mt-1 sm:text-3xl">Properties &amp; Units</h1>
+            <p className="mt-1 text-sm text-ink/50">Portfolio management, occupancy health, and unit rent schedules.</p>
           </div>
         </div>
       </BentoCard>
@@ -588,10 +503,8 @@ export default function Properties() {
             label="Total Potential Gross"
             value={peso(totalPotentialGross)}
             suffix="/mo"
-            captions={[
-              `Across ${properties.length} propert${properties.length === 1 ? "y" : "ies"} \u00b7 ${allUnits.length} total units`,
-            ]}
-            onClick={() => setStatModal("gross")}
+            captions={[`Across ${properties.length} propert${properties.length === 1 ? 'y' : 'ies'} \u00b7 ${allUnits.length} total units`]}
+            onClick={() => setStatModal('gross')}
           />
           <StatCard
             icon={faKey}
@@ -600,11 +513,9 @@ export default function Properties() {
             pill={{ text: `${occupancyPct}%` }}
             value={`${occupiedCount} / ${allUnits.length}`}
             suffix="Units Occupied"
-            bar={[{ pct: occupancyPct, className: "bg-status-paid" }]}
-            captions={[
-              `${allUnits.length - occupiedCount} available or under maintenance`,
-            ]}
-            onClick={() => setStatModal("occupancy")}
+            bar={[{ pct: occupancyPct, className: 'bg-status-paid' }]}
+            captions={[`${allUnits.length - occupiedCount} available or under maintenance`]}
+            onClick={() => setStatModal('occupancy')}
           />
           <StatCard
             icon={faBolt}
@@ -612,19 +523,9 @@ export default function Properties() {
             label="Utility Baselines Configured"
             value={`${baselinesConfiguredCount} / ${allUnits.length}`}
             suffix="Units Covered"
-            bar={[
-              {
-                pct:
-                  allUnits.length > 0
-                    ? Math.round(
-                        (baselinesConfiguredCount / allUnits.length) * 100,
-                      )
-                    : 0,
-                className: "bg-status-upcoming",
-              },
-            ]}
-            captions={["Electric, Water, Wifi baselines"]}
-            onClick={() => setStatModal("baselines")}
+            bar={[{ pct: allUnits.length > 0 ? Math.round((baselinesConfiguredCount / allUnits.length) * 100) : 0, className: 'bg-status-upcoming' }]}
+            captions={['Electric, Water, Wifi baselines']}
+            onClick={() => setStatModal('baselines')}
           />
         </div>
       )}
@@ -653,9 +554,7 @@ export default function Properties() {
             aria-label="Manage properties and units"
             title="Manage properties and units"
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors sm:h-11 sm:w-11 ${
-              manageMode
-                ? "bg-primary text-white"
-                : "bg-canvas text-ink/60 hover:bg-line"
+              manageMode ? 'bg-primary text-white' : 'bg-canvas text-ink/60 hover:bg-line'
             }`}
           >
             <FontAwesomeIcon icon={faGear} />
@@ -665,8 +564,7 @@ export default function Properties() {
 
       {manageMode && (
         <p className="-mt-3 text-xs text-ink/45">
-          Manage mode is on — properties and units below now show Edit and Add
-          unit actions.
+          Manage mode is on — properties and units below now show Edit and Add unit actions.
         </p>
       )}
 
@@ -682,29 +580,20 @@ export default function Properties() {
                   required
                   placeholder="Property name"
                   value={propertyForm.name}
-                  onChange={(e) =>
-                    setPropertyForm((f) => ({ ...f, name: e.target.value }))
-                  }
+                  onChange={(e) => setPropertyForm((f) => ({ ...f, name: e.target.value }))}
                   className="rounded-lg border border-line px-3 py-2 text-sm"
                 />
                 <input
                   required
                   placeholder="Address"
                   value={propertyForm.address}
-                  onChange={(e) =>
-                    setPropertyForm((f) => ({ ...f, address: e.target.value }))
-                  }
+                  onChange={(e) => setPropertyForm((f) => ({ ...f, address: e.target.value }))}
                   className="rounded-lg border border-line px-3 py-2 text-sm"
                 />
                 <input
                   placeholder="Description (optional)"
                   value={propertyForm.description}
-                  onChange={(e) =>
-                    setPropertyForm((f) => ({
-                      ...f,
-                      description: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setPropertyForm((f) => ({ ...f, description: e.target.value }))}
                   className="w-full rounded-lg border border-line px-3 py-2 text-sm"
                 />
               </div>
@@ -713,27 +602,19 @@ export default function Properties() {
             <div className="space-y-3">
               <div>
                 <p className="text-sm font-semibold">
-                  Units <span className="text-status-overdue">*</span>{" "}
-                  <span className="text-xs font-normal text-ink/45">
-                    ({draftUnits.length})
-                  </span>
+                  Units <span className="text-status-overdue">*</span>{' '}
+                  <span className="text-xs font-normal text-ink/45">({draftUnits.length})</span>
                 </p>
                 <p className="text-xs text-ink/50">
-                  Every property needs at least one unit. Use Duplicate to copy
-                  a unit&apos;s rent and utilities &mdash; the name counts up
-                  automatically (Unit 101 &rarr; Unit 102).
+                  Every property needs at least one unit. Use Duplicate to copy a unit&apos;s rent and utilities
+                  &mdash; the name counts up automatically (Unit 101 &rarr; Unit 102).
                 </p>
               </div>
 
               {draftUnits.map((unit, index) => (
-                <div
-                  key={unit.draftId}
-                  className="space-y-2 rounded-lg border border-line bg-canvas/50 p-3"
-                >
+                <div key={unit.draftId} className="space-y-2 rounded-lg border border-line bg-canvas/50 p-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-ink/50">
-                      Unit {index + 1}
-                    </p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-ink/50">Unit {index + 1}</p>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -753,10 +634,7 @@ export default function Properties() {
                       )}
                     </div>
                   </div>
-                  <UnitFieldsEditor
-                    form={unit}
-                    onChange={(next) => updateDraftUnit(unit.draftId, next)}
-                  />
+                  <UnitFieldsEditor form={unit} onChange={(next) => updateDraftUnit(unit.draftId, next)} />
                 </div>
               ))}
 
@@ -775,9 +653,7 @@ export default function Properties() {
                 disabled={creatingProperty}
                 className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark disabled:opacity-60"
               >
-                {creatingProperty
-                  ? "Saving..."
-                  : `Add property & ${draftUnits.length} unit${draftUnits.length === 1 ? "" : "s"}`}
+                {creatingProperty ? 'Saving...' : `Add property & ${draftUnits.length} unit${draftUnits.length === 1 ? '' : 's'}`}
               </button>
               <button
                 type="button"
@@ -813,23 +689,16 @@ export default function Properties() {
           {properties.length === 0 && !showPropertyForm && (
             <BentoCard className="text-center">
               <p className="font-medium">No properties yet</p>
-              <p className="mt-1 text-sm text-ink/50">
-                Add your first property, along with at least one unit, to start
-                tracking rent.
-              </p>
+              <p className="mt-1 text-sm text-ink/50">Add your first property, along with at least one unit, to start tracking rent.</p>
             </BentoCard>
           )}
 
           {properties.length > 0 && visibleProperties.length === 0 && (
             <BentoCard className="text-center">
-              <p className="font-medium">
-                No properties or units match your search
-              </p>
-              <p className="mt-1 text-sm text-ink/50">
-                Try a property name, address, unit name or tenant name.
-              </p>
+              <p className="font-medium">No properties or units match your search</p>
+              <p className="mt-1 text-sm text-ink/50">Try a property name, address, unit name or tenant name.</p>
               <button
-                onClick={() => setSearch("")}
+                onClick={() => setSearch('')}
                 className="mt-3 rounded-full border border-line px-4 py-1.5 text-xs font-medium hover:bg-canvas"
               >
                 Clear search
@@ -839,280 +708,208 @@ export default function Properties() {
 
           <div className="space-y-4">
             {visibleProperties.map(({ property, units, totalUnits }) => (
-              <BentoCard key={property._id}>
-                {editingPropertyId === property._id ? (
-                  <form
-                    onSubmit={(e) => handleUpdateProperty(e, property._id)}
-                    className="space-y-2"
+          <BentoCard key={property._id}>
+            {editingPropertyId === property._id ? (
+              <form onSubmit={(e) => handleUpdateProperty(e, property._id)} className="space-y-2">
+                <div>
+                  <label className="text-[11px] text-ink/50">Property name</label>
+                  <input
+                    required
+                    value={editPropertyForm.name}
+                    onChange={(e) => setEditPropertyForm((f) => ({ ...f, name: e.target.value }))}
+                    className="mt-0.5 w-full rounded-lg border border-line px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-ink/50">Address</label>
+                  <input
+                    required
+                    value={editPropertyForm.address}
+                    onChange={(e) => setEditPropertyForm((f) => ({ ...f, address: e.target.value }))}
+                    className="mt-0.5 w-full rounded-lg border border-line px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-ink/50">Description (optional)</label>
+                  <textarea
+                    rows={2}
+                    value={editPropertyForm.description}
+                    onChange={(e) => setEditPropertyForm((f) => ({ ...f, description: e.target.value }))}
+                    className="mt-0.5 w-full rounded-lg border border-line px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex gap-2">
+                    <button type="submit" className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark">
+                      Save Changes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEditProperty}
+                      className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink/60"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteProperty(property)}
+                    className="rounded-lg border border-status-overdue/30 px-4 py-2 text-sm font-medium text-status-overdue hover:bg-status-overdueSoft"
                   >
-                    <div>
-                      <label className="text-[11px] text-ink/50">
-                        Property name
-                      </label>
-                      <input
-                        required
-                        value={editPropertyForm.name}
-                        onChange={(e) =>
-                          setEditPropertyForm((f) => ({
-                            ...f,
-                            name: e.target.value,
-                          }))
-                        }
-                        className="mt-0.5 w-full rounded-lg border border-line px-3 py-2 text-sm"
+                    Delete Property
+                  </button>
+                </div>
+                {property.occupiedCount > 0 && (
+                  <p className="text-[11px] text-ink/40">
+                    This property has {property.occupiedCount} occupied unit{property.occupiedCount === 1 ? '' : 's'} —
+                    move those tenants out before it can be deleted.
+                  </p>
+                )}
+              </form>
+            ) : (
+              <div className="flex flex-wrap items-start justify-between gap-2.5 sm:gap-3">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="flex h-9 w-9 shrink-0 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-canvas text-ink/60">
+                    <FontAwesomeIcon icon={faBuilding} className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-base font-semibold">{property.name}</p>
+                    <p className="text-xs text-ink/50 sm:text-sm">{property.address}</p>
+                    {property.description && <p className="mt-1 hidden text-sm text-ink/60 sm:block">{property.description}</p>}
+                  </div>
+                </div>
+                <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0 sm:gap-3">
+                  <div className="flex flex-1 items-center gap-2.5 rounded-full bg-canvas px-3 py-1 sm:flex-none sm:px-3.5 sm:py-1.5">
+                    <span className="text-xs font-semibold">
+                      {property.occupiedCount}/{property.unitCount}
+                    </span>
+                    <span className="text-xs text-ink/50">Occupied</span>
+                    <span className="h-1.5 w-12 overflow-hidden rounded-full bg-line sm:w-14">
+                      <span
+                        className="block h-full rounded-full bg-status-paid"
+                        style={{ width: `${property.unitCount > 0 ? Math.round((property.occupiedCount / property.unitCount) * 100) : 0}%` }}
                       />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-ink/50">Address</label>
-                      <input
-                        required
-                        value={editPropertyForm.address}
-                        onChange={(e) =>
-                          setEditPropertyForm((f) => ({
-                            ...f,
-                            address: e.target.value,
-                          }))
-                        }
-                        className="mt-0.5 w-full rounded-lg border border-line px-3 py-2 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-ink/50">
-                        Description (optional)
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={editPropertyForm.description}
-                        onChange={(e) =>
-                          setEditPropertyForm((f) => ({
-                            ...f,
-                            description: e.target.value,
-                          }))
-                        }
-                        className="mt-0.5 w-full rounded-lg border border-line px-3 py-2 text-sm"
-                      />
-                    </div>
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setDetailPropertyId(property._id)}
+                    className="rounded-full border border-line px-3 py-1 text-xs font-medium text-ink/60 hover:bg-canvas"
+                  >
+                    Details
+                  </button>
+                  {manageMode && (
+                    <button
+                      onClick={() => startEditProperty(property)}
+                      className="rounded-full border border-line px-3 py-1 text-xs font-medium text-ink/60 hover:bg-canvas"
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-3 grid gap-2.5 sm:mt-5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+              {units.map((unit) =>
+                editingUnitId === unit._id ? (
+                  <form
+                    key={unit._id}
+                    onSubmit={(e) => handleUpdateUnit(e, unit)}
+                    className="col-span-full space-y-2 rounded-lg border border-line p-3 sm:col-span-2 lg:col-span-3"
+                  >
+                    <UnitFieldsEditor form={editUnitForm} onChange={setEditUnitForm} />
+                    {unit.status === 'occupied' ? (
+                      <p className="text-[11px] text-ink/40">
+                        This unit is currently occupied by {unit.currentTenant?.fullName || 'a tenant'}. Move them out
+                        from the Tenants page to change its status or delete it.
+                      </p>
+                    ) : (
+                      <div>
+                        <label className="text-[11px] text-ink/50">Status</label>
+                        <select
+                          value={editUnitStatus}
+                          onChange={(e) => setEditUnitStatus(e.target.value)}
+                          className="mt-0.5 w-full rounded-lg border border-line px-3 py-2 text-sm"
+                        >
+                          <option value="vacant">Vacant</option>
+                          <option value="reserved">Reserved</option>
+                          <option value="maintenance">Maintenance</option>
+                        </select>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex gap-2">
-                        <button
-                          type="submit"
-                          className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark"
-                        >
+                        <button type="submit" className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark">
                           Save Changes
                         </button>
                         <button
                           type="button"
-                          onClick={cancelEditProperty}
+                          onClick={cancelEditUnit}
                           className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink/60"
                         >
                           Cancel
                         </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteProperty(property)}
-                        className="rounded-lg border border-status-overdue/30 px-4 py-2 text-sm font-medium text-status-overdue hover:bg-status-overdueSoft"
-                      >
-                        Delete Property
-                      </button>
-                    </div>
-                    {property.occupiedCount > 0 && (
-                      <p className="text-[11px] text-ink/40">
-                        This property has {property.occupiedCount} occupied unit
-                        {property.occupiedCount === 1 ? "" : "s"} — move those
-                        tenants out before it can be deleted.
-                      </p>
-                    )}
-                  </form>
-                ) : (
-                  <div className="flex flex-wrap items-start justify-between gap-2.5 sm:gap-3">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <span className="flex h-9 w-9 shrink-0 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-canvas text-ink/60">
-                        <FontAwesomeIcon
-                          icon={faBuilding}
-                          className="h-4 w-4"
-                        />
-                      </span>
-                      <div>
-                        <p className="text-base font-semibold">
-                          {property.name}
-                        </p>
-                        <p className="text-xs text-ink/50 sm:text-sm">
-                          {property.address}
-                        </p>
-                        {property.description && (
-                          <p className="mt-1 hidden text-sm text-ink/60 sm:block">
-                            {property.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0 sm:gap-3">
-                      <div className="flex flex-1 items-center gap-2.5 rounded-full bg-canvas px-3 py-1 sm:flex-none sm:px-3.5 sm:py-1.5">
-                        <span className="text-xs font-semibold">
-                          {property.occupiedCount}/{property.unitCount}
-                        </span>
-                        <span className="text-xs text-ink/50">Occupied</span>
-                        <span className="h-1.5 w-12 overflow-hidden rounded-full bg-line sm:w-14">
-                          <span
-                            className="block h-full rounded-full bg-status-paid"
-                            style={{
-                              width: `${property.unitCount > 0 ? Math.round((property.occupiedCount / property.unitCount) * 100) : 0}%`,
-                            }}
-                          />
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => setDetailPropertyId(property._id)}
-                        className="rounded-full border border-line px-3 py-1 text-xs font-medium text-ink/60 hover:bg-canvas"
-                      >
-                        Details
-                      </button>
-                      {manageMode && (
+                      {unit.status !== 'occupied' && (
                         <button
-                          onClick={() => startEditProperty(property)}
-                          className="rounded-full border border-line px-3 py-1 text-xs font-medium text-ink/60 hover:bg-canvas"
+                          type="button"
+                          onClick={() => handleDeleteUnit(unit)}
+                          className="rounded-lg border border-status-overdue/30 px-4 py-2 text-sm font-medium text-status-overdue hover:bg-status-overdueSoft"
                         >
-                          Edit
+                          Delete Unit
                         </button>
                       )}
                     </div>
-                  </div>
-                )}
+                  </form>
+                ) : (
+                  <UnitCard key={unit._id} unit={unit} manage={manageMode} onEdit={() => startEditUnit(unit)} />
+                )
+              )}
+            </div>
 
-                <div className="mt-3 grid gap-2.5 sm:mt-5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
-                  {units.map((unit) =>
-                    editingUnitId === unit._id ? (
-                      <form
-                        key={unit._id}
-                        onSubmit={(e) => handleUpdateUnit(e, unit)}
-                        className="col-span-full space-y-2 rounded-lg border border-line p-3 sm:col-span-2 lg:col-span-3"
-                      >
-                        <UnitFieldsEditor
-                          form={editUnitForm}
-                          onChange={setEditUnitForm}
-                        />
-                        {unit.status === "occupied" ? (
-                          <p className="text-[11px] text-ink/40">
-                            This unit is currently occupied by{" "}
-                            {unit.currentTenant?.fullName || "a tenant"}. Move
-                            them out from the Tenants page to change its status
-                            or delete it.
-                          </p>
-                        ) : (
-                          <div>
-                            <label className="text-[11px] text-ink/50">
-                              Status
-                            </label>
-                            <select
-                              value={editUnitStatus}
-                              onChange={(e) =>
-                                setEditUnitStatus(e.target.value)
-                              }
-                              className="mt-0.5 w-full rounded-lg border border-line px-3 py-2 text-sm"
-                            >
-                              <option value="vacant">Vacant</option>
-                              <option value="reserved">Reserved</option>
-                              <option value="maintenance">Maintenance</option>
-                            </select>
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex gap-2">
-                            <button
-                              type="submit"
-                              className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark"
-                            >
-                              Save Changes
-                            </button>
-                            <button
-                              type="button"
-                              onClick={cancelEditUnit}
-                              className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink/60"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                          {unit.status !== "occupied" && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteUnit(unit)}
-                              className="rounded-lg border border-status-overdue/30 px-4 py-2 text-sm font-medium text-status-overdue hover:bg-status-overdueSoft"
-                            >
-                              Delete Unit
-                            </button>
-                          )}
-                        </div>
-                      </form>
-                    ) : (
-                      <UnitCard
-                        key={unit._id}
-                        unit={unit}
-                        manage={manageMode}
-                        onEdit={() => startEditUnit(unit)}
-                      />
-                    ),
-                  )}
-                </div>
+            {searchTerm && units.length < totalUnits && (
+              <p className="mt-3 text-xs text-ink/45">
+                Showing {units.length} of {totalUnits} units matching &ldquo;{search.trim()}&rdquo;.
+              </p>
+            )}
 
-                {searchTerm && units.length < totalUnits && (
-                  <p className="mt-3 text-xs text-ink/45">
-                    Showing {units.length} of {totalUnits} units matching
-                    &ldquo;{search.trim()}&rdquo;.
-                  </p>
-                )}
+            {manageMode && unitFormFor !== property._id && (
+              <button
+                type="button"
+                onClick={() => setUnitFormFor(property._id)}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-card border-2 border-dashed border-line py-3 text-sm font-medium text-ink/50 transition hover:border-primary/30 hover:bg-canvas hover:text-ink"
+              >
+                <FontAwesomeIcon icon={faPlus} className="h-3 w-3" />
+                Add unit
+              </button>
+            )}
 
-                {manageMode && unitFormFor !== property._id && (
+            {unitFormFor === property._id && (
+              <form onSubmit={(e) => handleCreateUnit(e, property._id)} className="mt-3 space-y-2 rounded-lg border border-line p-3">
+                <UnitFieldsEditor form={unitForm} onChange={setUnitForm} />
+                <div className="flex gap-2">
+                  <button type="submit" className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark">
+                    Add Unit
+                  </button>
                   <button
                     type="button"
-                    onClick={() => setUnitFormFor(property._id)}
-                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-card border-2 border-dashed border-line py-3 text-sm font-medium text-ink/50 transition hover:border-primary/30 hover:bg-canvas hover:text-ink"
+                    onClick={() => setUnitFormFor(null)}
+                    className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink/60"
                   >
-                    <FontAwesomeIcon icon={faPlus} className="h-3 w-3" />
-                    Add unit
+                    Cancel
                   </button>
-                )}
-
-                {unitFormFor === property._id && (
-                  <form
-                    onSubmit={(e) => handleCreateUnit(e, property._id)}
-                    className="mt-3 space-y-2 rounded-lg border border-line p-3"
-                  >
-                    <UnitFieldsEditor form={unitForm} onChange={setUnitForm} />
-                    <div className="flex gap-2">
-                      <button
-                        type="submit"
-                        className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark"
-                      >
-                        Add Unit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setUnitFormFor(null)}
-                        className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink/60"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </BentoCard>
-            ))}
+                </div>
+              </form>
+            )}
+          </BentoCard>
+        ))}
           </div>
         </>
       )}
 
-      <PropertyStatModals
-        kind={statModal}
-        properties={properties}
-        unitsByProperty={unitsByProperty}
-        onClose={() => setStatModal(null)}
-      />
+      <PropertyStatModals kind={statModal} properties={properties} unitsByProperty={unitsByProperty} onClose={() => setStatModal(null)} />
       {detailPropertyId && (
-        <PropertyDetailModal
-          key={detailPropertyId}
-          propertyId={detailPropertyId}
-          onClose={() => setDetailPropertyId(null)}
-        />
+        <PropertyDetailModal key={detailPropertyId} propertyId={detailPropertyId} onClose={() => setDetailPropertyId(null)} />
       )}
     </div>
   );

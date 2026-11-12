@@ -1,13 +1,9 @@
-import React from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faKey,
-  faPen,
-  faScrewdriverWrench,
-} from "@fortawesome/free-solid-svg-icons";
-import Avatar from "./Avatar.jsx";
-import { BillIcon } from "../lib/billIcons.jsx";
-import { peso } from "../lib/breakdown.js";
+import React from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faKey, faPen, faScrewdriverWrench } from '@fortawesome/free-solid-svg-icons';
+import Avatar from './Avatar.jsx';
+import { BillIcon } from '../lib/billIcons.jsx';
+import { peso } from '../lib/breakdown.js';
 
 // One unit inside a property card. The coloured top edge + a bold status pill
 // make a unit's state readable at a glance (Occupied / Vacant / Maintenance /
@@ -17,91 +13,67 @@ import { peso } from "../lib/breakdown.js";
 
 const STATUS = {
   occupied: {
-    label: "Occupied",
-    accent: "border-t-status-paid",
-    badge: "bg-status-paidSoft text-status-paid",
-    dot: "bg-status-paid",
+    label: 'Occupied',
+    accent: 'border-t-status-paid',
+    badge: 'bg-status-paidSoft text-status-paid',
+    dot: 'bg-status-paid',
   },
   vacant: {
-    label: "Vacant",
-    accent: "border-t-status-upcoming",
-    badge: "bg-status-upcomingSoft text-status-upcoming",
-    dot: "bg-status-upcoming",
+    label: 'Vacant',
+    accent: 'border-t-status-upcoming',
+    badge: 'bg-status-upcomingSoft text-status-upcoming',
+    dot: 'bg-status-upcoming',
   },
   maintenance: {
-    label: "Maintenance",
-    accent: "border-t-status-pending",
-    badge: "bg-status-pendingSoft text-status-pending",
-    dot: "bg-status-pending",
+    label: 'Maintenance',
+    accent: 'border-t-status-pending',
+    badge: 'bg-status-pendingSoft text-status-pending',
+    dot: 'bg-status-pending',
   },
   reserved: {
-    label: "Reserved",
-    accent: "border-t-status-verify",
-    badge: "bg-status-verifySoft text-status-verify",
-    dot: "bg-status-verify",
+    label: 'Reserved',
+    accent: 'border-t-status-verify',
+    badge: 'bg-status-verifySoft text-status-verify',
+    dot: 'bg-status-verify',
   },
 };
 
 const UTILITY_CHIPS = [
-  {
-    key: "electricity",
-    label: "Electricity",
-    tone: "bg-status-pendingSoft text-status-pending",
-  },
-  {
-    key: "water",
-    label: "Water",
-    tone: "bg-status-upcomingSoft text-status-upcoming",
-  },
-  {
-    key: "wifi",
-    label: "Wifi",
-    tone: "bg-status-verifySoft text-status-verify",
-  },
+  { key: 'electricity', label: 'Electricity', tone: 'bg-status-pendingSoft text-status-pending' },
+  { key: 'water', label: 'Water', tone: 'bg-status-upcomingSoft text-status-upcoming' },
+  { key: 'wifi', label: 'Wifi', tone: 'bg-status-verifySoft text-status-verify' },
 ];
 
-const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
+const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 
 function ordinalDay(day) {
   if (!day) return null;
-  const suffix = ["th", "st", "nd", "rd"][
-    day % 10 > 3 || Math.floor((day % 100) / 10) === 1 ? 0 : day % 10
-  ];
+  const suffix = ['th', 'st', 'nd', 'rd'][day % 10 > 3 || Math.floor((day % 100) / 10) === 1 ? 0 : day % 10];
   return `${day}${suffix}`;
 }
 
 function TenantStrip({ unit }) {
-  if (unit.status === "occupied") {
+  if (unit.status === 'occupied') {
     const name = unit.currentTenant?.fullName;
     return (
       <div className="flex items-center gap-2 sm:gap-2.5 sm:rounded-xl sm:bg-canvas sm:px-3 sm:py-2">
         <Avatar name={name || unit.name} size="sm" />
         <div className="min-w-0">
-          <p className="hidden text-[10px] font-medium uppercase tracking-wide text-ink/40 sm:block">
-            Current tenant
-          </p>
-          <p className="truncate text-sm font-medium">
-            {name || "Tenant on file"}
-          </p>
+          <p className="hidden text-[10px] font-medium uppercase tracking-wide text-ink/40 sm:block">Current tenant</p>
+          <p className="truncate text-sm font-medium">{name || 'Tenant on file'}</p>
         </div>
       </div>
     );
   }
 
   const copy = {
-    maintenance: {
-      icon: faScrewdriverWrench,
-      text: "Under maintenance, not available to rent",
-    },
-    reserved: { icon: faKey, text: "Reserved for an upcoming tenant" },
-  }[unit.status] || { icon: faKey, text: "No tenant yet, available to rent" };
+    maintenance: { icon: faScrewdriverWrench, text: 'Under maintenance, not available to rent' },
+    reserved: { icon: faKey, text: 'Reserved for an upcoming tenant' },
+  }[unit.status] || { icon: faKey, text: 'No tenant yet, available to rent' };
 
   return (
     <div className="flex items-center gap-2 rounded-xl border border-dashed border-line px-2.5 py-1.5 text-[11px] text-ink/50 sm:gap-2.5 sm:px-3 sm:py-2.5 sm:text-xs">
-      <FontAwesomeIcon
-        icon={copy.icon}
-        className="h-3 w-3 shrink-0 text-ink/35"
-      />
+      <FontAwesomeIcon icon={copy.icon} className="h-3 w-3 shrink-0 text-ink/35" />
       {copy.text}
     </div>
   );
@@ -109,67 +81,53 @@ function TenantStrip({ unit }) {
 
 export default function UnitCard({ unit, onEdit, manage = false }) {
   const s = STATUS[unit.status] || {
-    label: capitalize(unit.status) || "Unknown",
-    accent: "border-t-line",
-    badge: "bg-canvas text-ink/60",
-    dot: "bg-ink/30",
+    label: capitalize(unit.status) || 'Unknown',
+    accent: 'border-t-line',
+    badge: 'bg-canvas text-ink/60',
+    dot: 'bg-ink/30',
   };
 
-  const chips = UTILITY_CHIPS.filter(
-    ({ key }) =>
-      unit.utilities?.[key]?.amount > 0 || unit.utilities?.[key]?.dueDay,
-  );
+  const chips = UTILITY_CHIPS.filter(({ key }) => unit.utilities?.[key]?.amount > 0 || unit.utilities?.[key]?.dueDay);
 
   return (
     <div
       className={`flex flex-col rounded-card border border-t-4 border-line bg-surface p-2.5 shadow-sm sm:p-4 transition duration-150 hover:-translate-y-0.5 hover:shadow-card ${s.accent}`}
     >
       <div className="flex items-start justify-between gap-3">
-        <p className="font-heading text-sm font-semibold leading-tight sm:text-base">
-          {unit.name}
-        </p>
-        <span
-          className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold sm:px-3 sm:py-1 ${s.badge}`}
-        >
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${s.dot}`}
-            aria-hidden="true"
-          />
+        <p className="font-heading text-sm font-semibold leading-tight sm:text-base">{unit.name}</p>
+        <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold sm:px-3 sm:py-1 ${s.badge}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} aria-hidden="true" />
           {s.label}
         </span>
       </div>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 sm:mt-3 sm:block">
-        <div>
-          <p className="hidden text-[11px] font-medium uppercase tracking-wide text-ink/40 sm:block">
-            Monthly rent
-          </p>
-          <p className="text-base font-bold tracking-tight sm:mt-0.5 sm:text-2xl">
-            {peso(unit.monthlyRent)}
-            <span className="ml-0.5 text-[11px] font-normal text-ink/45 sm:hidden">
-              /mo
-            </span>
-          </p>
-        </div>
+      <div>
+        <p className="hidden text-[11px] font-medium uppercase tracking-wide text-ink/40 sm:block">Monthly rent</p>
+        <p className="text-base font-bold tracking-tight sm:mt-0.5 sm:text-2xl">
+          {peso(unit.monthlyRent)}
+          <span className="ml-0.5 text-[11px] font-normal text-ink/45 sm:hidden">/mo</span>
+        </p>
+      </div>
 
-        {chips.length > 0 && (
-          <div className="flex flex-wrap gap-1 sm:mt-3 sm:gap-1.5">
-            {chips.map(({ key, label, tone }) => {
-              const cfg = unit.utilities[key];
-              return (
-                <span
-                  key={key}
-                  title={label}
-                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-[11px] ${tone}`}
-                >
-                  <BillIcon type={key} />
-                  {cfg.amount > 0 ? peso(cfg.amount) : "Amount not set"}
-                  {cfg.dueDay ? ` \u00b7 due ${ordinalDay(cfg.dueDay)}` : ""}
-                </span>
-              );
-            })}
-          </div>
-        )}
+      {chips.length > 0 && (
+        <div className="flex flex-wrap gap-1 sm:mt-3 sm:gap-1.5">
+          {chips.map(({ key, label, tone }) => {
+            const cfg = unit.utilities[key];
+            return (
+              <span
+                key={key}
+                title={label}
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-[11px] ${tone}`}
+              >
+                <BillIcon type={key} />
+                {cfg.amount > 0 ? peso(cfg.amount) : 'Amount not set'}
+                {cfg.dueDay ? ` \u00b7 due ${ordinalDay(cfg.dueDay)}` : ''}
+              </span>
+            );
+          })}
+        </div>
+      )}
       </div>
 
       <div className="mt-auto space-y-2 pt-2 sm:space-y-3 sm:pt-4">
