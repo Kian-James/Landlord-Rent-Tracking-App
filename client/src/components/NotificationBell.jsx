@@ -1,25 +1,25 @@
-import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBell, faXmark } from "@fortawesome/free-solid-svg-icons";
-import client from "../api/client.js";
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faBell, faXmark } from '@fortawesome/free-solid-svg-icons';
+import client from '../api/client.js';
 
 const DESTINATION_BY_TYPE = {
-  rent_due_soon: "/bills",
-  rent_due_today: "/bills",
-  rent_overdue: "/bills",
-  utility_bill_overdue: "/bills",
-  receipt_received: "/bills",
-  payment_awaiting_verification: "/bills",
-  payment_approved: "/bills",
-  payment_rejected: "/bills",
-  contract_expiring: "/tenants",
-  contract_renewed: "/tenants",
+  rent_due_soon: '/bills',
+  rent_due_today: '/bills',
+  rent_overdue: '/bills',
+  utility_bill_overdue: '/bills',
+  receipt_received: '/bills',
+  payment_awaiting_verification: '/bills',
+  payment_approved: '/bills',
+  payment_rejected: '/bills',
+  contract_expiring: '/tenants',
+  contract_renewed: '/tenants',
 };
 
 function timeAgo(dateStr) {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (seconds < 60) return "just now";
+  if (seconds < 60) return 'just now';
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
@@ -27,10 +27,7 @@ function timeAgo(dateStr) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-export default function NotificationBell({
-  variant = "default",
-  className = "",
-}) {
+export default function NotificationBell({ variant = 'default', className = '' }) {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -40,10 +37,11 @@ export default function NotificationBell({
 
   const load = async () => {
     try {
-      const { data } = await client.get("/notifications");
+      const { data } = await client.get('/notifications');
       setNotifications(data.notifications);
       setUnreadCount(data.unreadCount);
-    } catch {}
+    } catch {
+    }
   };
 
   // Check once a minute, but not while the tab is in the background; catch up when it returns.
@@ -55,20 +53,19 @@ export default function NotificationBell({
     const onVisible = () => {
       if (!document.hidden) load();
     };
-    document.addEventListener("visibilitychange", onVisible);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
 
   useEffect(() => {
     function handleClickOutside(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target))
-        setOpen(false);
+      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const cancelScheduledClose = () => {
@@ -86,15 +83,11 @@ export default function NotificationBell({
   const handleNotificationClick = (n) => {
     setOpen(false);
     if (!n.read) {
-      setNotifications((prev) =>
-        prev.map((item) =>
-          item._id === n._id ? { ...item, read: true } : item,
-        ),
-      );
+      setNotifications((prev) => prev.map((item) => (item._id === n._id ? { ...item, read: true } : item)));
       setUnreadCount((c) => Math.max(0, c - 1));
       client.post(`/notifications/${n._id}/read`, {}).catch(() => {});
     }
-    navigate(DESTINATION_BY_TYPE[n.type] || "/");
+    navigate(DESTINATION_BY_TYPE[n.type] || '/');
   };
 
   const handleDismiss = async (e, n) => {
@@ -113,7 +106,7 @@ export default function NotificationBell({
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
     try {
-      await client.post("/notifications/read-all", {});
+      await client.post('/notifications/read-all', {});
     } catch {
       load();
     }
@@ -132,37 +125,30 @@ export default function NotificationBell({
       <button
         onClick={() => setOpen((o) => !o)}
         className={
-          variant === "bar"
-            ? "relative flex h-10 w-10 items-center justify-center rounded-full bg-canvas text-ink/70 hover:bg-line sm:h-11 sm:w-11"
-            : "relative rounded-full border border-line p-2 text-ink/60 hover:bg-canvas"
+          variant === 'bar'
+            ? 'relative flex h-10 w-10 items-center justify-center rounded-full bg-canvas text-ink/70 hover:bg-line sm:h-11 sm:w-11'
+            : 'relative rounded-full border border-line p-2 text-ink/60 hover:bg-canvas'
         }
         aria-label="Notifications"
         aria-expanded={open}
       >
-        <span aria-hidden="true">
-          <FontAwesomeIcon icon={faBell} />
-        </span>
+        <span aria-hidden="true"><FontAwesomeIcon icon={faBell} /></span>
         {unreadCount > 0 && (
           <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-status-overdue px-1 text-[9px] font-bold leading-none text-white">
-            {unreadCount > 99 ? "99+" : unreadCount}
+            {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
 
       <div
         className={`absolute right-0 top-full z-50 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] origin-top-right overflow-hidden rounded-xl border border-line bg-surface shadow-xl transition-all duration-150 ease-out ${
-          open
-            ? "pointer-events-auto scale-100 opacity-100"
-            : "pointer-events-none scale-95 opacity-0"
+          open ? 'pointer-events-auto scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
         }`}
       >
         <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
           <p className="text-sm font-semibold">Notifications</p>
           {unreadCount > 0 && (
-            <button
-              onClick={handleMarkAllRead}
-              className="text-xs font-medium text-ink/50 hover:text-ink"
-            >
+            <button onClick={handleMarkAllRead} className="text-xs font-medium text-ink/50 hover:text-ink">
               Mark all read
             </button>
           )}
@@ -170,35 +156,20 @@ export default function NotificationBell({
 
         <div className="max-h-[26rem] overflow-y-auto">
           {notifications.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-ink/50">
-              You're all caught up. No notifications right now.
-            </p>
+            <p className="px-4 py-8 text-center text-sm text-ink/50">You're all caught up. No notifications right now.</p>
           ) : (
             notifications.map((n) => (
               <div
                 key={n._id}
-                className={`relative border-b border-line last:border-b-0 hover:bg-canvas ${n.read ? "" : "bg-brand-soft/60"}`}
+                className={`relative border-b border-line last:border-b-0 hover:bg-canvas ${n.read ? '' : 'bg-brand-soft/60'}`}
               >
-                <button
-                  onClick={() => handleNotificationClick(n)}
-                  className="block w-full px-4 py-3 pr-11 text-left"
-                >
+                <button onClick={() => handleNotificationClick(n)} className="block w-full px-4 py-3 pr-11 text-left">
                   <div className="flex items-start justify-between gap-2">
-                    <p
-                      className={`text-sm text-ink ${n.read ? "font-medium" : "font-semibold"}`}
-                    >
-                      {n.title}
-                    </p>
-                    {!n.read && (
-                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
-                    )}
+                    <p className={`text-sm text-ink ${n.read ? 'font-medium' : 'font-semibold'}`}>{n.title}</p>
+                    {!n.read && <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />}
                   </div>
-                  <p className="mt-1 whitespace-normal break-words text-[13px] leading-snug text-ink/75">
-                    {n.message}
-                  </p>
-                  <p className="mt-1.5 text-[11px] text-ink/50">
-                    {timeAgo(n.createdAt)}
-                  </p>
+                  <p className="mt-1 whitespace-normal break-words text-[13px] leading-snug text-ink/75">{n.message}</p>
+                  <p className="mt-1.5 text-[11px] text-ink/50">{timeAgo(n.createdAt)}</p>
                 </button>
                 <button
                   type="button"
