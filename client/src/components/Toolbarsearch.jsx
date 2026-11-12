@@ -2,18 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faMagnifyingGlass, faXmark } from "@fortawesome/free-solid-svg-icons";
 
-// The search box used in every page's toolbar.
-//
-// sm and up: the normal pill-shaped input, exactly as before.
-// Phones: a toolbar can't fit a search box AND its other controls on one line,
-// so the search collapses to a round icon button. Tapping it lays the input
-// over the whole toolbar row (the toolbar must be `relative`); the X clears the
-// search and brings the other controls back. A dot on the icon shows when a
-// search is still active.
-//
-// `inlineOnMobile` keeps a real input on phones too - for toolbars with few
-// other controls (e.g. Properties) where it fits on the line anyway.
-// onChange receives an input change event, same as a plain <input>.
 export default function ToolbarSearch({
   value,
   onChange,
