@@ -1,4 +1,4 @@
-import React, { forwardRef } from "react";
+import React, { forwardRef } from 'react';
 
 // Phones get tighter padding (p-4) so cards feel compact; from `sm` up it is
 // the original p-6. A card that already asks for a small padding of its own
@@ -7,19 +7,11 @@ import React, { forwardRef } from "react";
 // keeps every desktop card exactly as it was.
 const SMALL_PAD = /(?:^|\s)(p-(?:0|1|2|3|4))(?=\s|$)/;
 
-const BentoCard = forwardRef(function BentoCard(
-  { children, className = "", span = 1, as: Tag = "div", ...rest },
-  ref,
-) {
-  const spanClass =
-    { 1: "", 2: "md:col-span-2", 3: "md:col-span-3", 4: "md:col-span-4" }[
-      span
-    ] || "";
+const BentoCard = forwardRef(function BentoCard({ children, className = '', span = 1, as: Tag = 'div', ...rest }, ref) {
+  const spanClass = { 1: '', 2: 'md:col-span-2', 3: 'md:col-span-3', 4: 'md:col-span-4' }[span] || '';
   const match = className.match(SMALL_PAD);
-  const mobilePad = match ? match[1] : "p-4";
-  const extra = match
-    ? className.replace(SMALL_PAD, " ")
-    : className.replace(/(?:^|\s)p-5(?=\s|$)/, " ");
+  const mobilePad = match ? match[1] : 'p-4';
+  const extra = match ? className.replace(SMALL_PAD, ' ') : className.replace(/(?:^|\s)p-5(?=\s|$)/, ' ');
   return (
     <Tag
       ref={ref}

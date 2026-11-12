@@ -1,10 +1,10 @@
-import React, { Suspense, useEffect } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Skeleton } from "./Skeleton.jsx";
-import AddressGate from "./AddressGate.jsx";
-import { useAuth } from "../context/AuthContext.jsx";
-import { RentoraMark } from "./RentoraLogo.jsx";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import React, { Suspense, useEffect } from 'react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Skeleton } from './Skeleton.jsx';
+import AddressGate from './AddressGate.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
+import { RentoraMark } from './RentoraLogo.jsx';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faTableCellsLarge,
   faFileInvoiceDollar,
@@ -13,7 +13,7 @@ import {
   faCalendarDays,
   faGear,
   faArrowRightFromBracket,
-} from "@fortawesome/free-solid-svg-icons";
+} from '@fortawesome/free-solid-svg-icons';
 
 // Same routes as before - only the chrome around them changed (top pill nav
 // -> floating left icon rail, per the design pass applied across the app).
@@ -21,38 +21,12 @@ import {
 // `shortLabel` as text, unchanged. Settings moves from the account dropdown
 // into the rail itself, alongside the other primary sections.
 const NAV_ITEMS = [
-  {
-    to: "/",
-    label: "Dashboard",
-    shortLabel: "Home",
-    end: true,
-    icon: faTableCellsLarge,
-  },
-  {
-    to: "/bills",
-    label: "Bill Checklist",
-    shortLabel: "Bills",
-    icon: faFileInvoiceDollar,
-  },
-  {
-    to: "/tenants",
-    label: "Tenants & Leases",
-    shortLabel: "Tenants",
-    icon: faUsers,
-  },
-  {
-    to: "/properties",
-    label: "Properties",
-    shortLabel: "Properties",
-    icon: faBuilding,
-  },
-  {
-    to: "/calendar",
-    label: "Calendar",
-    shortLabel: "Calendar",
-    icon: faCalendarDays,
-  },
-  { to: "/settings", label: "Settings", shortLabel: "Settings", icon: faGear },
+  { to: '/', label: 'Dashboard', shortLabel: 'Home', end: true, icon: faTableCellsLarge },
+  { to: '/bills', label: 'Bill Checklist', shortLabel: 'Bills', icon: faFileInvoiceDollar },
+  { to: '/tenants', label: 'Tenants & Leases', shortLabel: 'Tenants', icon: faUsers },
+  { to: '/properties', label: 'Properties', shortLabel: 'Properties', icon: faBuilding },
+  { to: '/calendar', label: 'Calendar', shortLabel: 'Calendar', icon: faCalendarDays },
+  { to: '/settings', label: 'Settings', shortLabel: 'Settings', icon: faGear },
 ];
 
 export default function Layout() {
@@ -62,16 +36,13 @@ export default function Layout() {
     if (navigator.connection?.saveData) return undefined;
     const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 2000));
     const handle = idle(() => {
-      import("../pages/Tenants.jsx");
-      import("../pages/Properties.jsx");
-      import("../pages/BillChecklist.jsx");
-      import("../pages/Calendar.jsx");
-      import("../pages/Settings.jsx");
+      import('../pages/Tenants.jsx');
+      import('../pages/Properties.jsx');
+      import('../pages/BillChecklist.jsx');
+      import('../pages/Calendar.jsx');
+      import('../pages/Settings.jsx');
     });
-    return () =>
-      window.cancelIdleCallback
-        ? window.cancelIdleCallback(handle)
-        : clearTimeout(handle);
+    return () => (window.cancelIdleCallback ? window.cancelIdleCallback(handle) : clearTimeout(handle));
   }, []);
 
   const { logout } = useAuth();
@@ -79,7 +50,7 @@ export default function Layout() {
 
   const handleLogout = async () => {
     await logout();
-    navigate("/login");
+    navigate('/login');
   };
 
   return (
@@ -99,9 +70,7 @@ export default function Layout() {
               title={item.label}
               className={({ isActive }) =>
                 `relative flex h-11 w-11 items-center justify-center rounded-2xl text-lg transition-colors ${
-                  isActive
-                    ? "bg-primary text-white"
-                    : "text-ink/40 hover:bg-canvas hover:text-ink"
+                  isActive ? 'bg-primary text-white' : 'text-ink/40 hover:bg-canvas hover:text-ink'
                 }`
               }
             >
@@ -148,7 +117,7 @@ export default function Layout() {
               aria-label={item.label}
               className={({ isActive }) =>
                 `flex min-h-[56px] flex-col items-center justify-center gap-0.5 rounded-2xl text-[10px] font-medium leading-none transition-colors active:scale-95 ${
-                  isActive ? "text-primary" : "text-ink/45"
+                  isActive ? 'text-primary' : 'text-ink/45'
                 }`
               }
             >
@@ -156,13 +125,10 @@ export default function Layout() {
                 <>
                   <span
                     className={`flex h-8 w-12 items-center justify-center rounded-full transition-colors ${
-                      isActive ? "bg-primary text-white" : ""
+                      isActive ? 'bg-primary text-white' : ''
                     }`}
                   >
-                    <FontAwesomeIcon
-                      icon={item.icon}
-                      className="h-[18px] w-[18px]"
-                    />
+                    <FontAwesomeIcon icon={item.icon} className="h-[18px] w-[18px]" />
                   </span>
                   <span>{item.shortLabel}</span>
                 </>
