@@ -75,3 +75,33 @@ export async function updateLandlord(id, patch) {
   remember(updated);
   return updated;
 }
+
+// Drop any cached copy of this landlord (used after the account is deleted so a
+// stale record can't be served for the next few seconds).
+export function forgetLandlord(id) {
+  landlordCache.delete(id);
+}
+
+// Permanently deletes a landlord's account and everything they own.
+//
+// Order matters:
+//   1. the landlord row  - every other table (properties, units, tenants, contracts,
+//      rent/utility records, payments, notifications, audit logs, contract template)
+//      references landlords(id) ON DELETE CASCADE, so this one delete removes all of it;
+//   2. the Supabase sign-in (auth user).
+// If step 2 fails the person's data is already gone (what matters for privacy) and a
+// retry simply finishes the job. Doing it the other way round could leave a person's
+// data behind with no way to log in and delete it.
+export async function deleteLandlordAccount(id) {
+  const { error } = await supabase.from('landlords').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+  forgetLandlord(id);
+
+  const { error: authError } = await supabase.auth.admin.deleteUser(id);
+  if (authError && !/not.?found/i.test(authError.message || '')) {
+    throw new ApiError(
+      500,
+      'Your data was deleted, but we could not finish removing your sign-in. Please try again, or contact support.'
+    );
+  }
+}

@@ -16,8 +16,7 @@ const sections = [
     body: (
       <>
         <P>
-          {LEGAL.appName} is operated by <Fill>{LEGAL.operator}</Fill> (“we”, “us”), <Fill>{LEGAL.operatorAddress}</Fill>.
-          This policy explains how we collect, use, share and protect personal data under the Data Privacy Act of 2012
+          {LEGAL.appName} is operated by <Fill>{LEGAL.operator}</Fill> (“we”, “us”). This policy explains how we collect, use, share and protect personal data under the Data Privacy Act of 2012
           (Republic Act No. 10173), its Implementing Rules and Regulations and National Privacy Commission (NPC) issuances.
         </P>
         <P>There are two groups of people whose data we handle, and our role is different for each:</P>
@@ -95,7 +94,7 @@ const sections = [
           <li><B>Supabase</B>: database and authentication hosting.</li>
           <li><B>Vercel</B>: application hosting and delivery.</li>
           <li><B>Google</B>: sign-in with Google, if you choose it.</li>
-          <li><B><Fill>[Email delivery provider, if you use one]</Fill></B>: sending reminder and account emails.</li>
+          <li><B>Google (Gmail)</B>: sending reminder and account emails.</li>
         </UL>
         <P>
           We may also disclose data when required by law, court order or a lawful request from a government body, to
@@ -126,7 +125,7 @@ const sections = [
     body: (
       <UL>
         <li><B>Active accounts</B>: data is kept while your account is open so the service works.</li>
-        <li><B>After you close your account</B>: we delete your account data and the tenant and rental data you entered within {LEGAL.retention.accountDeletionDays} days.</li>
+        <li><B>After you delete your account</B>: you can do this yourself in Settings, and your account data and the tenant and rental data you entered are removed from the live service right away. If you ask us to delete it, we do so within {LEGAL.retention.accountDeletionDays} days.</li>
         <li><B>Backups</B>: deleted data may remain in encrypted backups for up to about {LEGAL.retention.backupDays} days, then is overwritten.</li>
         <li><B>Audit and security logs</B>: kept for about {LEGAL.retention.auditLogMonths} months.</li>
         <li>We may keep limited records longer where the law requires or to establish, exercise or defend legal claims.</li>
@@ -168,7 +167,8 @@ const sections = [
           <li><B>file a complaint</B> with the National Privacy Commission (<a href="https://privacy.gov.ph" target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">privacy.gov.ph</a>).</li>
         </UL>
         <P>
-          To use these rights, email our Data Protection Officer, <Fill>{LEGAL.dpoName}</Fill>, at{' '}
+          You can <B>delete your account and all its data yourself</B> at any time in Settings. For any other request, email
+          our Data Protection Officer, <Fill>{LEGAL.dpoName}</Fill>, at{' '}
           <Fill>{LEGAL.privacyEmail}</Fill>. We may ask you to verify your identity first and will reply within a reasonable
           time, generally within 30 days. <B>If you are a tenant</B>, your landlord decides how your data is used, so you
           can ask your landlord directly or write to us and we will help route and resolve your request. Some rights may
@@ -215,7 +215,6 @@ const sections = [
       <P>
         <B>Data Protection Officer:</B> <Fill>{LEGAL.dpoName}</Fill><br />
         <B>Email:</B> <Fill>{LEGAL.privacyEmail}</Fill><br />
-        <B>Address:</B> <Fill>{LEGAL.operatorAddress}</Fill><br />
         You may also contact the National Privacy Commission at privacy.gov.ph.
       </P>
     ),

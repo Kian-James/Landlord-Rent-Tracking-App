@@ -194,13 +194,14 @@ const sections = [
     body: (
       <>
         <P>
-          You can stop using {LEGAL.appName} at any time and ask us to delete your account at{' '}
-          <Fill>{LEGAL.privacyEmail}</Fill>. We may suspend or close an account that breaks these Terms, puts the service
+          You can stop using {LEGAL.appName} at any time. You can delete your account yourself in{' '}
+          <B>Settings &rarr; Danger zone &rarr; Delete account</B>, or ask us to at <Fill>{LEGAL.privacyEmail}</Fill>.
+          Deleting your account is permanent. We may suspend or close an account that breaks these Terms, puts the service
           or other people at risk, or where the law requires.
         </P>
         <P>
-          After an account is closed, we delete Your Data within {LEGAL.retention.accountDeletionDays} days, except for
-          copies in backups (which expire within about {LEGAL.retention.backupDays} days) and records we must keep to
+          When you delete your account, Your Data is removed from the live service straight away. If you ask us to
+          delete it instead, we do so within {LEGAL.retention.accountDeletionDays} days. Copies in backups (which expire within about {LEGAL.retention.backupDays} days) and records we must keep to
           meet legal obligations or resolve disputes.
         </P>
       </>
@@ -264,8 +265,8 @@ const sections = [
         <P>
           These Terms are governed by the laws of the Republic of the Philippines. Please contact us first at{' '}
           <Fill>{LEGAL.contactEmail}</Fill> so we can try to resolve any concern in good faith. If we cannot, the proper
-          courts of <Fill>{LEGAL.venue}</Fill> have exclusive jurisdiction, subject to any right you have under law to
-          bring a claim elsewhere.
+          courts of the Republic of the Philippines have jurisdiction, subject to any right you have under law to bring
+          a claim elsewhere.
         </P>
       </>
     ),
@@ -282,7 +283,6 @@ const sections = [
         </P>
         <P>
           <B><Fill>{LEGAL.operator}</Fill></B><br />
-          <Fill>{LEGAL.operatorAddress}</Fill><br />
           General: <Fill>{LEGAL.contactEmail}</Fill> &middot; Privacy: <Fill>{LEGAL.privacyEmail}</Fill>
         </P>
       </>

@@ -11,6 +11,16 @@ import { friendlyAuthError } from '../lib/authError.js';
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  // Set by Settings right before an account is deleted; shown once, then cleared.
+  const [accountDeleted] = useState(() => {
+    try {
+      const flag = sessionStorage.getItem('rentora:accountDeleted') === '1';
+      sessionStorage.removeItem('rentora:accountDeleted');
+      return flag;
+    } catch {
+      return false;
+    }
+  });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -43,6 +53,12 @@ export default function Login() {
         </>
       }
     >
+      {accountDeleted && (
+        <div className="mb-5">
+          <AuthAlert tone="success">Your account and all its data have been permanently deleted.</AuthAlert>
+        </div>
+      )}
+
       <GoogleAuthButton onError={setError} />
 
       <div className="my-6 flex items-center gap-3">

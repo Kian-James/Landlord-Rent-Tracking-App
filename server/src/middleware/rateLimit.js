@@ -28,3 +28,14 @@ const contractPreviewLimiter = rateLimit({
 });
 
 export { contractConvertLimiter, contractPreviewLimiter };
+
+// Deleting an account is irreversible - keep repeated attempts in check.
+const accountDeleteLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { message: 'Too many attempts. Please try again later.' } },
+});
+
+export { accountDeleteLimiter };

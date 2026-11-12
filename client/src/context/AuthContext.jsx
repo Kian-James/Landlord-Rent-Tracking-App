@@ -138,6 +138,25 @@ export function AuthProvider({ children }) {
     [landlord]
   );
 
+  // Permanently deletes the account. Email/password accounts must re-enter their
+  // password first (same re-check as changing it); the server also requires the
+  // typed account email. Afterwards the local session is cleared.
+  const deleteAccount = useCallback(
+    async ({ confirmEmail, password }) => {
+      if (canChangePassword) {
+        const { error: verifyError } = await supabase.auth.signInWithPassword({
+          email: landlord.email,
+          password,
+        });
+        if (verifyError) throw verifyError;
+      }
+      await client.delete('/settings/account', { data: { confirmEmail } });
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      setLandlord(null);
+    },
+    [landlord, canChangePassword]
+  );
+
   return (
     <AuthContext.Provider
       value={{
@@ -150,6 +169,7 @@ export function AuthProvider({ children }) {
         logout,
         canChangePassword,
         changePassword,
+        deleteAccount,
         consumeNewLandlordFlag,
       }}
     >

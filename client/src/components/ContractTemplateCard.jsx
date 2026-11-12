@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import client from '../api/client.js';
-import BentoCard from './BentoCard.jsx';
+import { Section, btnPrimary, btnSecondary } from './SettingsParts.jsx';
 import Modal from './Modal.jsx';
 import ContractTemplateEditor from './ContractTemplateEditor.jsx';
 import { Skeleton } from './Skeleton.jsx';
@@ -133,23 +133,23 @@ export default function ContractTemplateCard() {
     }
   };
 
-  const btn = 'rounded-btn border border-line px-3 py-2 text-sm font-medium hover:bg-canvas disabled:opacity-50';
+  const btn = btnSecondary;
 
   return (
     <>
-      <BentoCard>
-        <h2 className="text-base font-semibold">Contract template</h2>
-        <p className="mt-1 text-sm text-ink/60">
-          The contract that &ldquo;Contract PDF&rdquo; downloads for each tenant. Upload your own contract (PDF) and it keeps its exact look &mdash; only the
-          names, dates, amounts and addresses are filled in for you.
-        </p>
+      <Section
+        id="contract"
+        title="Contract template"
+        description="Used for every tenant’s “Contract PDF”. Upload your own contract and it keeps its exact look — only names, dates, amounts and addresses are filled in."
+      >
+        <div className="px-4 py-4 sm:px-6">
 
         {state.loading && <Skeleton className="mt-3 h-10 w-full rounded-lg" />}
         {state.error && <p className="mt-3 text-sm text-status-overdue">{state.error}</p>}
 
         {template && (
           <>
-            <p className="mt-3 text-sm">
+            <p className="rounded-xl bg-canvas px-4 py-3 text-sm">
               {template.isDefault ? (
                 <>Using the <span className="font-medium">starter contract</span>.</>
               ) : (
@@ -167,7 +167,7 @@ export default function ContractTemplateCard() {
                   setError('');
                   setShowUpload(true);
                 }}
-                className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark"
+                className={btnPrimary}
               >
                 Upload your contract (PDF)
               </button>
@@ -187,7 +187,8 @@ export default function ContractTemplateCard() {
         )}
         {message && <p className="mt-2 text-xs text-brand">{message}</p>}
         {error && !showUpload && <p className="mt-2 text-sm text-status-overdue">{error}</p>}
-      </BentoCard>
+              </div>
+      </Section>
 
       <Modal open={showUpload} onClose={() => !busy && setShowUpload(false)} title="Upload your contract" size="lg">
         <div className="space-y-4">

@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
 import validate from '../middleware/validate.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, revokeCachedTokens } from '../middleware/auth.js';
+import { accountDeleteLimiter } from '../middleware/rateLimit.js';
+import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { toApi } from '../db/mapper.js';
-import { updateLandlord } from '../services/landlords.js';
+import { updateLandlord, deleteLandlordAccount } from '../services/landlords.js';
 
 const router = Router();
 
@@ -39,6 +41,26 @@ router.patch(
       notification_preferences: { ...req.landlord.notificationPreferences, ...updates },
     });
     res.json({ landlord: toApi(landlord) });
+  })
+);
+
+// Permanently delete the signed-in landlord's account and all their data.
+// The person has to type their account email as a deliberate confirmation (the app
+// also re-checks their password first for email/password accounts).
+router.delete(
+  '/account',
+  accountDeleteLimiter,
+  [body('confirmEmail').isString().trim().isLength({ min: 3, max: 320 })],
+  validate,
+  asyncHandler(async (req, res) => {
+    const typed = String(req.body.confirmEmail || '').trim().toLowerCase();
+    if (typed !== String(req.landlord.email || '').toLowerCase()) {
+      throw new ApiError(400, 'The email you typed does not match your account email.');
+    }
+    await deleteLandlordAccount(req.landlordId);
+    revokeCachedTokens(req.landlordId);
+    console.info(`[account] deleted landlord ${req.landlordId}`);
+    res.json({ deleted: true });
   })
 );
 

@@ -59,8 +59,8 @@ const sections = [
     body: (
       <P>
         For as long as your landlord keeps the record, which is normally for the lease and a reasonable period after for
-        legal and accounting purposes. When a landlord closes their account, the data is deleted within{' '}
-        {LEGAL.retention.accountDeletionDays} days (backups clear within about {LEGAL.retention.backupDays} days).
+        legal and accounting purposes. When a landlord deletes their account, the data is removed right away (backups
+        clear within about {LEGAL.retention.backupDays} days).
       </P>
     ),
   },

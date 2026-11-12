@@ -62,6 +62,14 @@ async function verifyToken(token) {
   return user;
 }
 
+// After an account is deleted, forget its cached tokens so none can be used to
+// re-create the landlord record during the cache window.
+function revokeCachedTokens(userId) {
+  for (const [key, entry] of verified) {
+    if (entry.user?.id === userId) verified.delete(key);
+  }
+}
+
 const requireAuth = asyncHandler(async (req, res, next) => {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -76,4 +84,4 @@ const requireAuth = asyncHandler(async (req, res, next) => {
   next();
 });
 
-export { requireAuth };
+export { requireAuth, revokeCachedTokens };
