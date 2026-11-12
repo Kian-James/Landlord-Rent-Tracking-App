@@ -4,6 +4,7 @@ import BentoCard from './BentoCard.jsx';
 import StatCard from './StatCard.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import Avatar from './Avatar.jsx';
+import { Link } from 'react-router-dom';
 import RentoraLogo from './RentoraLogo.jsx';
 
 // The right-hand side of the auth pages is a small "taste of the app" built
@@ -99,6 +100,11 @@ export default function AuthLayout({ title, subtitle, children, footer }) {
             <div className="mt-7">{children}</div>
 
             <p className="mt-7 text-center text-sm text-ink/55">{footer}</p>
+            <p className="mt-4 text-center text-xs text-ink/40">
+              <Link to="/terms" className="hover:text-ink hover:underline">Terms</Link>
+              {' · '}
+              <Link to="/privacy" className="hover:text-ink hover:underline">Privacy</Link>
+            </p>
           </BentoCard>
         </main>
 

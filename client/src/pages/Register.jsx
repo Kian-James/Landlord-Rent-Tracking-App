@@ -18,6 +18,7 @@ export default function Register() {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [agreed, setAgreed] = useState(false);
 
   const handleChange = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
   const passwordLongEnough = form.password.length >= MIN_PASSWORD_LENGTH;
@@ -26,6 +27,10 @@ export default function Register() {
     e.preventDefault();
     setError('');
     setInfo('');
+    if (!agreed) {
+      setError('Please agree to the Terms of Service and Privacy Policy to create your account.');
+      return;
+    }
     setSubmitting(true);
     try {
       const result = await register(form.name, form.email, form.password);
@@ -54,7 +59,33 @@ export default function Register() {
         </>
       }
     >
-      <GoogleAuthButton onError={setError} />
+      {/* Required for both sign-up methods; Google is blocked until it is ticked. */}
+      <label className="mb-5 flex cursor-pointer items-start gap-2.5 text-sm leading-snug text-ink/65">
+        <input
+          type="checkbox"
+          checked={agreed}
+          onChange={(e) => setAgreed(e.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded accent-primary"
+        />
+        <span>
+          I am at least 18 and I agree to the{' '}
+          <Link to="/terms" target="_blank" className="font-medium text-primary hover:underline">Terms of Service</Link>
+          {' '}and{' '}
+          <Link to="/privacy" target="_blank" className="font-medium text-primary hover:underline">Privacy Policy</Link>.
+        </span>
+      </label>
+
+      <div
+        onClickCapture={(e) => {
+          if (!agreed) {
+            e.stopPropagation();
+            e.preventDefault();
+            setError('Please agree to the Terms of Service and Privacy Policy first.');
+          }
+        }}
+      >
+        <GoogleAuthButton onError={setError} />
+      </div>
 
       <div className="my-6 flex items-center gap-3">
         <span className="h-px flex-1 bg-line" />

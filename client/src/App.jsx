@@ -15,6 +15,10 @@ const Tenants = lazy(() => import('./pages/Tenants.jsx'));
 const BillChecklist = lazy(() => import('./pages/BillChecklist.jsx'));
 const Calendar = lazy(() => import('./pages/Calendar.jsx'));
 const Settings = lazy(() => import('./pages/Settings.jsx'));
+// Public legal pages - readable without an account (tenants, new sign-ups).
+const Terms = lazy(() => import('./pages/Terms.jsx'));
+const Privacy = lazy(() => import('./pages/Privacy.jsx'));
+const TenantNotice = lazy(() => import('./pages/TenantNotice.jsx'));
 
 export default function App() {
   return (
@@ -23,6 +27,9 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/tenant-notice" element={<TenantNotice />} />
 
       <Route
         path="/"
